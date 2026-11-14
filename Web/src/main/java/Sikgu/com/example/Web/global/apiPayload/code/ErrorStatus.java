@@ -23,6 +23,10 @@ public enum ErrorStatus {
     VERIFICATION_CODE_MISMATCH(HttpStatus.BAD_REQUEST, "AUTH4002", "인증코드가 일치하지 않습니다."),
     VERIFICATION_CODE_EXPIRED(HttpStatus.BAD_REQUEST, "AUTH4003", "인증코드가 만료되었거나 발송 이력이 없습니다."),
     VERIFICATION_TOKEN_INVALID(HttpStatus.BAD_REQUEST, "AUTH4004", "이메일 인증이 만료되었습니다. 다시 인증해 주세요."),
+    LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "AUTH4011", "아이디 또는 비밀번호가 일치하지 않습니다."),
+    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH4012", "다시 로그인해 주세요."),
+    LOGGED_OUT_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH4013", "로그아웃한 토큰입니다. 다시 로그인해 주세요."),
+    SUSPENDED_USER(HttpStatus.FORBIDDEN, "AUTH4031", "이용이 정지된 계정입니다."),
     EMAIL_SEND_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "AUTH5001", "인증 메일 발송에 실패했습니다."),
 
     // 회원

@@ -97,4 +97,10 @@ public class User {
         user.overdueCount = 0;
         return user;
     }
+
+    /** 지금 정지 상태인지. suspendedUntil이 없으면 무기한 정지로 본다 (정지 기간 정책은 미정, D9) */
+    public boolean isSuspended(LocalDateTime now) {
+        return status == UserStatus.SUSPENDED
+                && (suspendedUntil == null || suspendedUntil.isAfter(now));
+    }
 }

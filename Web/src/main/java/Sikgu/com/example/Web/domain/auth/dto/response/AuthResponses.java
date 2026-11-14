@@ -21,6 +21,14 @@ public final class AuthResponses {
     public record SignupResponse(Long userId, String nickname) {
     }
 
+    /** POST /api/auth/login */
+    public record LoginResponse(String accessToken, String refreshToken, Long userId, String nickname) {
+    }
+
+    /** POST /api/auth/reissue */
+    public record TokenResponse(String accessToken, String refreshToken) {
+    }
+
     private AuthResponses() {
     }
 }
