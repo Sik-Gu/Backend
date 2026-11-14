@@ -1,0 +1,24 @@
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# 비밀값 (JWT 키, DB 비밀번호, 메일 계정, PG 시크릿 키 등)
+.env
+.env.*
+!.env.example
+**/application-local.yaml
+**/application-local.yml
+**/application-secret.yaml
+**/application-secret.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 로그·업로드
+*.log
+logs/
+uploads/
