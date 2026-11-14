@@ -98,6 +98,13 @@ public class User {
         return user;
     }
 
+    /** 동네 변경. 이미 등록한 게시글의 거래 장소는 바뀌지 않는다. */
+    public void changeLocation(String dongName, Double latitude, Double longitude) {
+        this.dongName = dongName;
+        this.latitude = latitude;
+        this.longitude = longitude;
+    }
+
     /** 지금 정지 상태인지. suspendedUntil이 없으면 무기한 정지로 본다 (정지 기간 정책은 미정, D9) */
     public boolean isSuspended(LocalDateTime now) {
         return status == UserStatus.SUSPENDED
