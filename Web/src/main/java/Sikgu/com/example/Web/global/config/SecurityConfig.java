@@ -12,6 +12,7 @@ import java.time.Clock;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -33,8 +34,12 @@ public class SecurityConfig {
             "/api/auth/signup",
             "/api/auth/login",
             "/api/auth/reissue",
-            "/api/locations/**",
             "/error"
+    };
+
+    /** 로그인 없이 조회할 수 있는 정적 파일. <img> 태그로 바로 띄워야 해서 공개 */
+    private static final String[] PUBLIC_GET_URLS = {
+            "/images/**"
     };
 
     @Bean
@@ -47,6 +52,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_URLS).permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_URLS).permitAll()
                         .anyRequest().authenticated())
                 // 필터를 빈으로 등록하면 서블릿 필터로도 한 번 더 등록되므로 여기서 직접 만든다
                 .addFilterBefore(new JwtAuthenticationFilter(jwtProvider, blacklist),

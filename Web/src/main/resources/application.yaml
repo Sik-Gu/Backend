@@ -4,7 +4,16 @@ spring:
   config:
     # 비밀값은 커밋하지 않는 .env 파일에서 읽는다 (Web/.env, .env.example 참고)
     import: optional:file:.env[.properties]
+  servlet:
+    multipart:
+      # 이미지 업로드 용량 (docs/API.md 5장): 파일당 10MB, 요청 전체 100MB
+      max-file-size: 10MB
+      max-request-size: 100MB
 
 jwt:
   # 서명 키. 값은 .env 또는 환경변수 JWT_SECRET에 넣는다 (32바이트 이상)
   secret: ${JWT_SECRET:}
+
+image:
+  # 개발용 로컬 저장 폴더 (Web/uploads, .gitignore에 포함). /images/** 로 제공
+  upload-dir: uploads
