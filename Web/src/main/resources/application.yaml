@@ -1,3 +1,10 @@
 spring:
   application:
     name: Web
+  config:
+    # 비밀값은 커밋하지 않는 .env 파일에서 읽는다 (Web/.env, .env.example 참고)
+    import: optional:file:.env[.properties]
+
+jwt:
+  # 서명 키. 값은 .env 또는 환경변수 JWT_SECRET에 넣는다 (32바이트 이상)
+  secret: ${JWT_SECRET:}
