@@ -22,3 +22,6 @@ Thumbs.db
 *.log
 logs/
 uploads/
+
+# 내용 정리용
+SIKGU_SPEC.md
