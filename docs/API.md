@@ -37,6 +37,7 @@
 | Base URL | `/api` (채팅 WebSocket만 `/ws-stomp`) |
 | 데이터 형식 | `application/json; charset=UTF-8`. 이미지 업로드만 `multipart/form-data` |
 | 인증 | 로그인 후 받은 Access Token을 `Authorization: Bearer {token}` 헤더로 보냄. 권한이 **공개**인 API만 토큰 없이 호출 가능 |
+| 토큰 | JWT. Access Token 30분, Refresh Token 14일 (가정). Refresh Token은 Redis에 저장하고, 재발급할 때 Refresh Token도 새로 발급함(이전 값은 무효) (보완) |
 | 날짜 | ISO 8601 (`2026-10-27T14:00:00`), 날짜만 쓸 때 `2026-10-27` |
 | 금액·포인트 | 정수. 1원 = 1P |
 | 이미지 | `POST /api/images`로 먼저 올리고 받은 URL을 각 API 요청에 넣음 |
@@ -48,7 +49,7 @@
 | 권한 | 의미 | 위반 시 |
 |---|---|---|
 | 공개 | 토큰 없이 호출 가능 | - |
-| 로그인 | 유효한 Access Token 필요 | `AUTH401` |
+| 로그인 | 유효한 Access Token 필요 | `AUTH401`, 로그아웃한 토큰이면 `AUTH4013` |
 | 호스트 | 해당 게시글을 연 사람 (`role = HOST`) | `AUTH403` |
 | 참여자 | 해당 게시글에 `PARTICIPANT`로 참여한 사람 (호스트 제외) | `AUTH403` |
 | 호스트·참여자 | 해당 게시글의 HOST 또는 PARTICIPANT | `AUTH403` |
@@ -117,6 +118,7 @@
 | 400 | `AUTH4004` | `verificationToken`이 유효하지 않거나 만료 | 보완 |
 | 401 | `AUTH4011` | 로그인 실패 (아이디 또는 비밀번호 불일치) | 보완 |
 | 401 | `AUTH4012` | Refresh Token 무효·만료 | 보완 |
+| 401 | `AUTH4013` | 로그아웃한 Access Token | 보완 |
 | 403 | `AUTH4031` | **정지된 계정** (미수금 기한 초과 누적 10회) | 보완 [D9] |
 | 500 | `AUTH5001` | 인증 메일 발송 실패 | 보완 |
 
@@ -463,16 +465,23 @@
 { "accessToken": "eyJ...", "refreshToken": "eyJ...", "userId": 12, "nickname": "배고픈 고구마" }
 ```
 
+| 필드 | 설명 |
+|---|---|
+| `accessToken` | API 호출 시 `Authorization: Bearer` 헤더에 넣는 토큰. 30분 |
+| `refreshToken` | Access Token이 만료됐을 때 재발급에 쓰는 토큰. 14일. Redis에 저장 |
+
 **Errors**
 
 | HTTP | code | 상황 |
 |---|---|---|
-| 401 | `AUTH4011` | 아이디 또는 비밀번호 불일치 (둘을 구분하지 않음) |
+| 400 | `COMMON400` | 아이디·비밀번호 누락 |
+| 401 | `AUTH4011` | 아이디 또는 비밀번호 불일치 (어느 쪽이 틀렸는지 구분하지 않음) |
 | 403 | `AUTH4031` | 정지된 계정 [D9] |
 
 ### POST /api/auth/reissue — 토큰 재발급
 
 - 권한: 공개 · Access Token이 만료돼 `AUTH401`을 받으면 호출
+- Redis에 저장된 Refresh Token과 같아야 합니다. 재발급하면 Refresh Token도 새로 발급하고 이전 값은 쓸 수 없습니다 (보완)
 
 **Request Body** (보완)
 ```json
@@ -488,19 +497,24 @@
 
 | HTTP | code | 상황 |
 |---|---|---|
-| 401 | `AUTH4012` | Refresh Token 무효·만료 |
+| 400 | `COMMON400` | `refreshToken` 누락 |
+| 401 | `AUTH4012` | Refresh Token 무효·만료, 또는 이미 재발급에 쓴 토큰 |
 | 403 | `AUTH4031` | 정지된 계정 [D9] |
 
 ### POST /api/auth/logout — 로그아웃
 
 - 권한: 로그인 · 화면: 07
 - 바디 없음. 응답 `result`는 `null`
+- 처리 (보완)
+  1. Redis에 저장된 Refresh Token 삭제
+  2. 지금 쓴 Access Token을 남은 유효시간 동안 차단 목록(Redis)에 등록 → 이후 이 토큰으로 호출하면 `AUTH4013`
 
 **Errors**
 
 | HTTP | code | 상황 |
 |---|---|---|
 | 401 | `AUTH401` | 토큰 없음·만료 |
+| 401 | `AUTH4013` | 이미 로그아웃한 토큰 |
 
 ### GET /api/users/me — 내 정보
 
