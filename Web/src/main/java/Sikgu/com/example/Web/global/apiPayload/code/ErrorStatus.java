@@ -75,6 +75,11 @@ public enum ErrorStatus {
     REVIEW_DUPLICATED(HttpStatus.CONFLICT, "REVIEW4091", "이미 후기를 작성한 대상입니다."),
     REVIEW_PERIOD_CLOSED(HttpStatus.CONFLICT, "REVIEW4092", "후기는 정산완료 후 3일 안에만 쓸 수 있습니다."),
 
+    // 신고
+    CANNOT_REPORT_SELF(HttpStatus.BAD_REQUEST, "REPORT4001", "자기 자신은 신고할 수 없습니다."),
+    REPORT_DETAIL_REQUIRED(HttpStatus.BAD_REQUEST, "REPORT4002",
+            "신고 사유에 필요한 값이 없습니다. (게시글 유해: 게시글, 채팅: 메시지, 거래 위반: 게시글·단계, 기타: 내용)"),
+
     // 차단
     CANNOT_BLOCK_SELF(HttpStatus.BAD_REQUEST, "BLOCK4001", "자기 자신은 차단할 수 없습니다."),
     ALREADY_BLOCKED(HttpStatus.CONFLICT, "BLOCK4091", "이미 차단한 사용자입니다."),
