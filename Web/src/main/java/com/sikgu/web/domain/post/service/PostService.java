@@ -3,6 +3,7 @@ package com.sikgu.web.domain.post.service;
 import com.sikgu.web.domain.post.dto.CreatePostRequest;
 import com.sikgu.web.domain.post.dto.CreatePostResponse;
 import com.sikgu.web.domain.post.dto.PostDetailResponse;
+import com.sikgu.web.domain.post.dto.UpdatePostRequest;
 import com.sikgu.web.domain.post.entity.Post;
 import com.sikgu.web.domain.post.repository.PostRepository;
 import com.sikgu.web.domain.user.entity.User;
@@ -71,5 +72,32 @@ public class PostService {
                 .orElseThrow(() -> new GeneralException(ErrorCode.POST_NOT_FOUND));
 
         return PostDetailResponse.from(post);
+    }
+
+    @Transactional
+    public void updatePost(Long userId, Long postId, UpdatePostRequest request) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new GeneralException(ErrorCode.POST_NOT_FOUND));
+
+        if (!post.isHost(userId)) {
+            throw new GeneralException(ErrorCode.NOT_POST_HOST);
+        }
+        if (!post.isRecruiting()) {
+            throw new GeneralException(ErrorCode.POST_NOT_RECRUITING);
+        }
+        // TODO(5번 참여): 호스트 말고 다른 참여자가 있으면 수정 불가
+
+        UpdatePostRequest.TradePlaceRequest tradePlace = request.tradePlace();
+        post.update(
+                request.title(),
+                request.productName(),
+                request.productLink(),
+                request.category(),
+                request.content(),
+                request.deadlineAt(),
+                tradePlace != null ? tradePlace.name() : null,
+                tradePlace != null ? tradePlace.latitude() : null,
+                tradePlace != null ? tradePlace.longitude() : null
+        );
     }
 }

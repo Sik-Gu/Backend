@@ -26,8 +26,9 @@ public enum ErrorCode {
     // 게시글
     PRICE_NOT_DIVISIBLE(HttpStatus.BAD_REQUEST, "POST400", "총 가격이 단위 수로 나누어떨어지지 않아요"),
     INVALID_HOST_UNITS(HttpStatus.BAD_REQUEST, "POST400", "호스트 구매 수량은 총 단위 수보다 적어야 해요"),
-    POST_NOT_FOUND(HttpStatus.NOT_FOUND, "POST404", "공구를 찾을 수 없어요");
-
+    NOT_POST_HOST(HttpStatus.FORBIDDEN, "POST403", "호스트만 할 수 있어요"),
+    POST_NOT_FOUND(HttpStatus.NOT_FOUND, "POST404", "공구를 찾을 수 없어요"),
+    POST_NOT_RECRUITING(HttpStatus.CONFLICT, "POST409", "모집중인 공구만 수정·취소할 수 있어요");
 
     private final HttpStatus httpStatus;
     private final String code;

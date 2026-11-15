@@ -106,4 +106,31 @@ public class Post extends BaseEntity {
         this.status = PostStatus.RECRUITING;
         this.viewCount = 0;
     }
+
+    // 호스트인지 확인
+    public boolean isHost(Long userId) {
+        return host.getId().equals(userId);
+    }
+
+    // 모집중인지 확인
+    public boolean isRecruiting() {
+        return status == PostStatus.RECRUITING;
+    }
+
+    // 수정 (null이 아닌 값만 바꿈)
+    public void update(String title, String productName, String productLink, Category category,
+                       String content, LocalDateTime deadlineAt,
+                       String tradePlaceName, Double latitude, Double longitude) {
+        if (title != null) this.title = title;
+        if (productName != null) this.productName = productName;
+        if (productLink != null) this.productLink = productLink;
+        if (category != null) this.category = category;
+        if (content != null) this.content = content;
+        if (deadlineAt != null) this.deadlineAt = deadlineAt;
+        if (tradePlaceName != null) {
+            this.tradePlaceName = tradePlaceName;
+            this.latitude = latitude;
+            this.longitude = longitude;
+        }
+    }
 }
