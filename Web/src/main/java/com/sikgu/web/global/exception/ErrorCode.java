@@ -11,6 +11,7 @@ public enum ErrorCode {
     // 공통
     BAD_REQUEST(HttpStatus.BAD_REQUEST, "COMMON400", "잘못된 요청이에요"),
     NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON404", "요청한 대상을 찾을 수 없어요"),
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "COMMON405", "지원하지 않는 요청 방식이에요"),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON500", "서버 오류가 발생했어요"),
 
     // 인증
@@ -20,6 +21,8 @@ public enum ErrorCode {
     // 사용자
     LOGIN_ID_DUPLICATED(HttpStatus.CONFLICT, "USER409", "이미 사용 중인 아이디예요"),
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "USER401", "아이디 또는 비밀번호가 일치하지 않아요");
+
+
 
     private final HttpStatus httpStatus;
     private final String code;
