@@ -145,6 +145,7 @@
 | 409 | `POST409` | 현재 공구 상태에서 할 수 없는 요청 | 원본 |
 | 400 | `POST4001` | `hostUnits`가 범위를 벗어남 (1 이상 `totalUnits - 1` 이하) | 보완 |
 | 400 | `POST4002` | `deadlineAt`이 과거 | 보완 |
+| 400 | `POST4003` | `totalPrice`가 `totalUnits`로 나누어떨어지지 않음 (가정) | 보완 |
 | 409 | `POST4091` | 수정 불가 (모집중이 아니거나 호스트 외 참여자가 있음) | 보완 |
 | 409 | `POST4092` | 취소 불가 (주문완료 이후) | 보완 |
 | 400 | `PART4001` | 신청 단위가 남은 단위를 초과 | 원본(400) |
@@ -659,18 +660,28 @@
 ### GET /api/posts — 공구 목록·검색·필터
 
 - 권한: 로그인 · 화면: 02
-- 거리는 내가 저장한 동네 좌표 기준입니다. 차단 관계인 사용자의 글은 빠집니다.
+- 거리는 **내 동네 좌표 ↔ 공구 거래 장소 좌표** 사이의 직선 거리입니다. 두 좌표 모두 동 중심 좌표라 동 크기만큼 오차가 있습니다 [D15]
+- 차단 관계인 사용자의 글은 빠집니다 (차단 기능 구현 후 적용)
 
 **Query**
 
 | 파라미터 | 타입 | 필수 | 기본값 | 설명 |
 |---|---|---|---|---|
-| `keyword` | string | N | 없음 | 제목·상품명 검색어 |
+| `keyword` | string | N | 없음 | 제목·상품명 부분 일치, 대소문자 무시 (1~50자) |
 | `category` | Category | N | 전체 | |
-| `radius` | int | N | `3` | `1`, `3`, `5` (km) |
-| `recruitingOnly` | boolean | N | `true` | 모집중만 보기 |
-| `sort` | PostSort | N | `LATEST` | |
-| `page`, `size` | int | N | `0`, `9` | |
+| `radius` | int | N | `3` | `1`, `3`, `5` (km)만 허용 |
+| `recruitingOnly` | boolean | N | `true` | `true`면 모집중(`RECRUITING`)만. `false`면 취소(`CANCELLED`)를 뺀 전체 |
+| `sort` | PostSort | N | `LATEST` | 아래 표 참고 |
+| `page`, `size` | int | N | `0`, `9` | `size`는 1~50 |
+
+| `sort` | 정렬 |
+|---|---|
+| `LATEST` | 최신 등록순 |
+| `DEADLINE` | 마감 임박순. **마감이 지나지 않은 글만** 보여줌 |
+| `POPULAR` | 조회수 많은 순 |
+| `PRICE` | 단위당 가격 낮은 순 |
+
+같은 순위면 최신 등록순으로 정렬합니다 (보완).
 
 **Response** — `content[]` 한 개 (PostCard)
 ```json
@@ -695,10 +706,18 @@
 
 | 필드 | 설명 |
 |---|---|
+| `thumbnailUrl` | 첫 번째 이미지. 이미지가 없으면 `null` → 프론트가 기본 이미지 표시 |
 | `filledUnits` | 지금까지 찬 단위 수. **호스트 본인 단위 포함** [D3, D8] |
 | `participantCount` | 참여 인원. 호스트 포함 [D3] |
+| `dongName` | 거래 장소의 동 이름 |
+| `distanceKm` | 내 동네에서 거래 장소까지 거리. 소수 첫째 자리 반올림 |
 
-**Errors**: `COMMON400`, `AUTH401`
+**Errors**
+
+| HTTP | code | 상황 |
+|---|---|---|
+| 400 | `COMMON400` | `radius`가 1·3·5가 아님, `size` 범위 오류, 없는 `category`·`sort` 값 |
+| 401 | `AUTH401` | 토큰 없음·만료 |
 
 ### GET /api/posts/{postId} — 공구 상세
 
@@ -750,11 +769,19 @@
 |---|---|
 | `statusTimeline` | 단계별로 넘어간 시각 [D5]. `cancelledAt` 추가 |
 | `statusTimeline.distributedAt` | 호스트가 나눔 일정·장소를 입력한 시각 [D6] |
+| `imageUrls` | 등록 순서대로. 비어 있으면 프론트가 기본 이미지 표시 |
+| `participants` | 호스트 포함, 참여 취소(환급)한 사람은 빠짐 |
+| `host.mainCategories`, `participants[].mainCategories` | 거래가 많은 카테고리. 공구 진행 기능이 생기기 전까지는 빈 배열 (보완) |
 | `me` | 참여하지 않았으면 `null` |
 | `maxSelectableUnits` | `totalUnits - filledUnits`. 모집중이 아니면 0 |
 | `chatRoomId` | 호스트·참여자에게만 값이 있고, 그 밖에는 `null` |
 
-**Errors**: `AUTH401`, `COMMON404`
+**Errors**
+
+| HTTP | code | 상황 |
+|---|---|---|
+| 401 | `AUTH401` | 토큰 없음·만료 |
+| 404 | `COMMON404` | 게시글 없음 |
 
 ### POST /api/posts — 공구 등록
 
@@ -769,22 +796,23 @@
 
 **Request Body**
 
-| 필드 | 타입 | 필수 | 설명 |
+| 필드 | 타입 | 필수 | 설명 (검증 규칙은 가정) |
 |---|---|---|---|
-| `title` | string | Y | 제목 |
-| `productName` | string | Y | 상품명 |
-| `productLink` | string | N | 상품 링크 |
+| `title` | string | Y | 제목, 1~50자 |
+| `productName` | string | Y | 상품명, 1~100자 |
+| `productLink` | string | N | 상품 링크, 500자 이하 |
 | `category` | Category | Y | |
-| `content` | string | N | 내용 |
-| `imageUrls` | string[] | N | 비우면 기본 이미지 |
-| `baseUnit` | string | Y | 기본 단위 (예: "2L 생수 4병") |
-| `totalUnits` | int | Y | 총 단위 수 |
-| `totalPrice` | int | Y | 총 가격 (호스트가 예상한 가격) |
+| `content` | string | N | 내용, 2,000자 이하 |
+| `imageUrls` | string[] | N | `POST /api/images`(`type=POST`)로 받은 URL, 0~10개. 비우면 기본 이미지 |
+| `baseUnit` | string | Y | 기본 단위 (예: "2L 생수 4병"), 1~30자 |
+| `totalUnits` | int | Y | 총 단위 수, 2~100 |
+| `totalPrice` | int | Y | 총 가격 (호스트가 예상한 가격), 1~10,000,000. `totalUnits`로 나누어떨어져야 함 |
 | `hostUnits` | int | Y | 호스트 본인 구매 단위 (1 이상 `totalUnits - 1` 이하) |
-| `deadlineAt` | datetime | Y | 모집 마감 일시 |
-| `tradePlace.name` | string | Y | 거래 장소 이름 |
-| `tradePlace.latitude` | double | Y | |
-| `tradePlace.longitude` | double | Y | |
+| `deadlineAt` | datetime | Y | 모집 마감 일시. 현재보다 미래 |
+| `tradePlace.name` | string | Y | 거래 장소 이름, 1~100자 |
+| `tradePlace.dongName` | string | Y | 거래 장소의 동 이름. 프론트가 카카오맵 SDK로 구함 [D15] |
+| `tradePlace.latitude` | double | Y | 거래 장소 위도 |
+| `tradePlace.longitude` | double | Y | 거래 장소 경도 |
 
 ```json
 {
@@ -799,11 +827,13 @@
   "totalPrice": 29040,
   "hostUnits": 2,
   "deadlineAt": "2026-10-29T23:59:00",
-  "tradePlace": { "name": "○○대학교 정문 앞", "latitude": 37.5012, "longitude": 127.0396 }
+  "tradePlace": { "name": "○○대학교 정문 앞", "dongName": "역삼동", "latitude": 37.5012, "longitude": 127.0396 }
 }
 ```
 
-단위당 가격(`unitPrice = totalPrice / totalUnits`)은 서버가 계산합니다. `totalPrice`는 예상 가격이고, 실제 가격과 다르면 영수증 등록 때 차액을 정산합니다 [D9].
+- 단위당 가격(`unitPrice = totalPrice / totalUnits`)은 서버가 계산합니다. 나누어떨어지지 않으면 `POST4003`으로 거부합니다 (가정: 나머지 처리 방식 미정)
+- `totalPrice`는 예상 가격이고, 실제 가격과 다르면 영수증 등록 때 차액을 정산합니다 [D9]
+- 거래 장소는 사람들이 만나는 공개 장소라, 공구 위치는 동 중심 좌표가 아니라 **거래 장소 좌표 그대로** 저장합니다 (보완)
 
 **Response**
 ```json
@@ -822,6 +852,7 @@
 | 400 | `COMMON400` | 필수 값 누락·형식 오류 |
 | 400 | `POST4001` | `hostUnits` 범위 오류 |
 | 400 | `POST4002` | `deadlineAt`이 과거 |
+| 400 | `POST4003` | `totalPrice`가 `totalUnits`로 나누어떨어지지 않음 |
 | 403 | `POINT4031` | 미납 미수금이 있어 등록 불가 [D9] |
 | 409 | `POINT409` | 호스트 몫을 결제할 잔액 부족 → 충전 후 등록 안내 [D8] |
 | 409 | `POINT4091` | 지갑 동시 변경 충돌 |
@@ -831,7 +862,9 @@
 - 권한: 호스트 · 화면: 04
 - 선행조건: `RECRUITING`이고 호스트 외 참여자가 없음
 - 보낸 필드만 바뀝니다. 수정 가능: `title`, `productName`, `productLink`, `category`, `content`, `imageUrls`, `deadlineAt`, `tradePlace`
-- `totalUnits`, `totalPrice`, `hostUnits`, `baseUnit`은 수정할 수 없습니다. 호스트가 이미 보류한 금액이 달라지기 때문입니다 [D8]. 바꾸려면 취소 후 다시 등록합니다.
+- `totalUnits`, `totalPrice`, `hostUnits`, `baseUnit`은 수정할 수 없습니다. 호스트가 이미 보류한 금액이 달라지기 때문입니다 [D8]. 바꾸려면 취소 후 다시 등록합니다. 보내도 **무시**합니다 (보완)
+- 검증 규칙은 등록과 같습니다. `tradePlace`를 바꿀 때는 `name`, `dongName`, `latitude`, `longitude`를 모두 보냅니다
+- `imageUrls`를 보내면 이미지 목록 전체를 그 값으로 바꿉니다
 
 **Request Body** — 등록과 같은 필드 중 수정 가능한 것만
 ```json
@@ -847,7 +880,8 @@
 
 | HTTP | code | 상황 |
 |---|---|---|
-| 400 | `COMMON400` | 수정 불가 필드 포함, 형식 오류 |
+| 400 | `COMMON400` | 형식 오류 |
+| 400 | `POST4002` | `deadlineAt`이 과거 |
 | 403 | `AUTH403` | 호스트가 아님 |
 | 404 | `COMMON404` | 게시글 없음 |
 | 409 | `POST4091` | 모집중이 아니거나 참여자가 있음 |
