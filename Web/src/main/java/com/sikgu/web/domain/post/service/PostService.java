@@ -2,6 +2,7 @@ package com.sikgu.web.domain.post.service;
 
 import com.sikgu.web.domain.post.dto.CreatePostRequest;
 import com.sikgu.web.domain.post.dto.CreatePostResponse;
+import com.sikgu.web.domain.post.dto.PostDetailResponse;
 import com.sikgu.web.domain.post.entity.Post;
 import com.sikgu.web.domain.post.repository.PostRepository;
 import com.sikgu.web.domain.user.entity.User;
@@ -55,5 +56,20 @@ public class PostService {
 
         Post savedPost = postRepository.save(post);
         return new CreatePostResponse(savedPost.getId());
+    }
+
+    @Transactional
+    public PostDetailResponse getPost(Long postId) {
+        // 1. 조회수 +1 (0줄이면 게시글 없음)
+        int updated = postRepository.increaseViewCount(postId);
+        if (updated == 0) {
+            throw new GeneralException(ErrorCode.POST_NOT_FOUND);
+        }
+
+        // 2. 게시글 + 호스트 조회
+        Post post = postRepository.findWithHostById(postId)
+                .orElseThrow(() -> new GeneralException(ErrorCode.POST_NOT_FOUND));
+
+        return PostDetailResponse.from(post);
     }
 }
