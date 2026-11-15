@@ -17,6 +17,14 @@ public final class PostResponses {
     public record PostCreateResponse(Long postId, Long chatRoomId, int unitPrice, long paidPoint, long balanceAfter) {
     }
 
+    /** PATCH /api/posts/{postId} */
+    public record PostIdResponse(Long postId) {
+    }
+
+    /** DELETE /api/posts/{postId} */
+    public record PostCancelResponse(Long postId, PostStatus postStatus, int refundedCount, long refundedPoint) {
+    }
+
     /** 목록 카드 (GET /api/posts 의 content[] 한 개) */
     public record PostCard(
             Long postId,

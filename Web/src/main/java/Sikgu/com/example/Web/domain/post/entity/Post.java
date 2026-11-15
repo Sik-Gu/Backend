@@ -186,6 +186,36 @@ public class Post {
 
     // ---------- 수정 ----------
 
+    /** 공구 수정. null인 값은 그대로 둔다 */
+    public void update(String title, String productName, String productLink, Category category, String content,
+                       LocalDateTime deadlineAt) {
+        if (title != null) {
+            this.title = title;
+        }
+        if (productName != null) {
+            this.productName = productName;
+        }
+        if (productLink != null) {
+            this.productLink = productLink;
+        }
+        if (category != null) {
+            this.category = category;
+        }
+        if (content != null) {
+            this.content = content;
+        }
+        if (deadlineAt != null) {
+            this.deadlineAt = deadlineAt;
+        }
+    }
+
+    public void changeTradePlace(String name, String dongName, Double latitude, Double longitude) {
+        this.tradePlaceName = name;
+        this.dongName = dongName;
+        this.tradeLatitude = latitude;
+        this.tradeLongitude = longitude;
+    }
+
     /** 이미지 목록 전체를 바꾼다 */
     public void replaceImages(List<String> imageUrls) {
         images.clear();

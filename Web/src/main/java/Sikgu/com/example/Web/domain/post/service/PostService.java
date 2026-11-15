@@ -4,12 +4,15 @@ import Sikgu.com.example.Web.domain.participation.entity.Participation;
 import Sikgu.com.example.Web.domain.participation.repository.ParticipationRepository;
 import Sikgu.com.example.Web.domain.participation.service.TradeStatsReader;
 import Sikgu.com.example.Web.domain.post.dto.request.PostCreateRequest;
+import Sikgu.com.example.Web.domain.post.dto.request.PostUpdateRequest;
 import Sikgu.com.example.Web.domain.post.dto.request.TradePlaceRequest;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.HostSummary;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.MyParticipation;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.ParticipantSummary;
+import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostCancelResponse;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostCreateResponse;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostDetailResponse;
+import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostIdResponse;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.StatusTimeline;
 import Sikgu.com.example.Web.domain.post.entity.Post;
 import Sikgu.com.example.Web.domain.post.enums.Category;
@@ -32,7 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 공구 등록·상세 (docs/API.md 6장)
+ * 공구 등록·상세·수정·취소 (docs/API.md 6장)
  */
 @Service
 @RequiredArgsConstructor
@@ -117,6 +120,66 @@ public class PostService {
                 post.getStatus() == PostStatus.RECRUITING ? post.remainingUnits() : 0,
                 // 채팅방 ID는 호스트·참여자에게만
                 mine == null ? null : chatClient.findRoomId(postId).orElse(null));
+    }
+
+    /**
+     * 공구 수정. 모집중이고 호스트 외 참여자가 없을 때만 (참여와 동시에 일어나지 않게 게시글 락).
+     * 가격·단위 관련 값은 호스트 보류 금액이 바뀌므로 수정하지 않는다 (D8).
+     */
+    @Transactional
+    public PostIdResponse update(Long userId, Long postId, PostUpdateRequest request) {
+        Post post = getPostForUpdate(postId);
+        validateHost(post, userId);
+        if (post.getStatus() != PostStatus.RECRUITING || post.getParticipantCount() > 1) {
+            throw new GeneralException(ErrorStatus.POST_NOT_EDITABLE);
+        }
+        if (request.deadlineAt() != null && !request.deadlineAt().isAfter(LocalDateTime.now(clock))) {
+            throw new GeneralException(ErrorStatus.DEADLINE_PASSED);
+        }
+
+        post.update(request.title(), request.productName(), request.productLink(), request.category(),
+                request.content(), request.deadlineAt());
+        if (request.imageUrls() != null) {
+            post.replaceImages(request.imageUrls());
+        }
+        TradePlaceRequest place = request.tradePlace();
+        if (place != null) {
+            post.changeTradePlace(place.name(), place.dongName(), place.latitude(), place.longitude());
+        }
+        return new PostIdResponse(post.getId());
+    }
+
+    /**
+     * 공구 취소 (주문완료 전만). 호스트 포함 참여자 전원 환급 → 채팅방 종료.
+     * 락 순서: 게시글 → 지갑 (D4)
+     */
+    @Transactional
+    public PostCancelResponse cancel(Long userId, Long postId) {
+        Post post = getPostForUpdate(postId);
+        validateHost(post, userId);
+        post.cancel(LocalDateTime.now(clock));
+
+        List<Participation> participations = participationRepository.findActiveByPostId(postId);
+        long refundedPoint = 0;
+        for (Participation participation : participations) {
+            pointClient.refund(participation.getUser().getId(), postId, participation.getId());
+            participation.markRefunded();
+            refundedPoint += participation.paidPoint();
+        }
+        chatClient.close(postId);
+
+        return new PostCancelResponse(postId, post.getStatus(), participations.size(), refundedPoint);
+    }
+
+    private Post getPostForUpdate(Long postId) {
+        return postRepository.findByIdForUpdate(postId)
+                .orElseThrow(() -> new GeneralException(ErrorStatus.POST_NOT_FOUND));
+    }
+
+    private static void validateHost(Post post, Long userId) {
+        if (!post.isHost(userId)) {
+            throw new GeneralException(ErrorStatus.NOT_POST_HOST);
+        }
     }
 
     private void validateCreate(PostCreateRequest request, LocalDateTime now) {

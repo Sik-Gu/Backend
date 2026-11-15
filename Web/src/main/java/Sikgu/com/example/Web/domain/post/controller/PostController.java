@@ -1,9 +1,12 @@
 package Sikgu.com.example.Web.domain.post.controller;
 
 import Sikgu.com.example.Web.domain.post.dto.request.PostCreateRequest;
+import Sikgu.com.example.Web.domain.post.dto.request.PostUpdateRequest;
+import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostCancelResponse;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostCard;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostCreateResponse;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostDetailResponse;
+import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostIdResponse;
 import Sikgu.com.example.Web.domain.post.enums.Category;
 import Sikgu.com.example.Web.domain.post.enums.PostSort;
 import Sikgu.com.example.Web.domain.post.service.PostQueryService;
@@ -17,7 +20,9 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -64,5 +69,19 @@ public class PostController {
     public ApiResponse<PostDetailResponse> getDetail(@AuthenticationPrincipal AuthUser authUser,
                                                      @PathVariable Long postId) {
         return ApiResponse.onSuccess(postService.getDetail(authUser.userId(), postId));
+    }
+
+    /** 공구 수정 (호스트, 모집중 + 다른 참여자 없음) */
+    @PatchMapping("/{postId}")
+    public ApiResponse<PostIdResponse> update(@AuthenticationPrincipal AuthUser authUser, @PathVariable Long postId,
+                                              @RequestBody @Valid PostUpdateRequest request) {
+        return ApiResponse.onSuccess(postService.update(authUser.userId(), postId, request));
+    }
+
+    /** 공구 취소 (호스트, 주문완료 전). 호스트 포함 전원 환급 */
+    @DeleteMapping("/{postId}")
+    public ApiResponse<PostCancelResponse> cancel(@AuthenticationPrincipal AuthUser authUser,
+                                                  @PathVariable Long postId) {
+        return ApiResponse.onSuccess(postService.cancel(authUser.userId(), postId));
     }
 }
