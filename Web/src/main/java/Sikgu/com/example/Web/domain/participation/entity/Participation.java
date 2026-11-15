@@ -71,6 +71,12 @@ public class Participation {
     @Column(nullable = false)
     private LocalDateTime joinedAt;
 
+    /** 영수증 차액 정산 금액. 양수 = 추가 청구, 음수 = 환급, null = 차액 없음 (D9) */
+    private Long adjustmentAmount;
+
+    /** 추가 청구 중 잔액이 부족해 미수금이 된 금액 (D9) */
+    private Long adjustmentDebtAmount;
+
     public static Participation host(Post post, User user, int units, LocalDateTime now) {
         return create(post, user, ParticipationRole.HOST, units, now);
     }
@@ -134,6 +140,12 @@ public class Participation {
         this.receiptStatus = ReceiptStatus.RECEIVED;
         this.receivedAt = now;
         this.autoConfirmed = auto;
+    }
+
+    /** 영수증 차액 정산 결과를 남긴다 (D9) */
+    public void applyAdjustment(long amount, long debtAmount) {
+        this.adjustmentAmount = amount;
+        this.adjustmentDebtAmount = debtAmount;
     }
 
     /** 수령 문제 문의 시작 */
