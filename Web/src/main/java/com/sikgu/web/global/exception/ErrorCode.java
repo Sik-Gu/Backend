@@ -18,7 +18,8 @@ public enum ErrorCode {
     FORBIDDEN(HttpStatus.FORBIDDEN, "AUTH403", "권한이 없어요"),
 
     // 사용자
-    LOGIN_ID_DUPLICATED(HttpStatus.CONFLICT, "USER409", "이미 사용 중인 아이디예요");
+    LOGIN_ID_DUPLICATED(HttpStatus.CONFLICT, "USER409", "이미 사용 중인 아이디예요"),
+    LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "USER401", "아이디 또는 비밀번호가 일치하지 않아요");
 
     private final HttpStatus httpStatus;
     private final String code;

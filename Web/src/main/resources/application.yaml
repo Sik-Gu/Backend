@@ -2,6 +2,9 @@ spring:
   application:
     name: Web
 
+  config:
+    import: optional:classpath:application-secret.yaml
+
   jpa:
     open-in-view: false
     hibernate:
@@ -10,3 +13,7 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 3600000

@@ -1,12 +1,11 @@
 package com.sikgu.web.domain.user.service;
 
-import com.sikgu.web.domain.user.dto.CheckLoginIdResponse;
-import com.sikgu.web.domain.user.dto.SignupRequest;
-import com.sikgu.web.domain.user.dto.SignupResponse;
+import com.sikgu.web.domain.user.dto.*;
 import com.sikgu.web.domain.user.entity.User;
 import com.sikgu.web.domain.user.repository.UserRepository;
 import com.sikgu.web.global.exception.ErrorCode;
 import com.sikgu.web.global.exception.GeneralException;
+import com.sikgu.web.global.jwt.JwtProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,6 +19,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final NicknameGenerator nicknameGenerator;
+    private final JwtProvider jwtProvider;
 
     public CheckLoginIdResponse checkLoginId(String loginId) {
         boolean available = !userRepository.existsByLoginId(loginId);
@@ -44,5 +44,20 @@ public class AuthService {
 
         User savedUser = userRepository.save(user);
         return new SignupResponse(savedUser.getId(), savedUser.getNickname());
+    }
+
+    public LoginResponse login(LoginRequest request) {
+        // 1. 아이디로 사용자 찾기 (없으면 실패)
+        User user = userRepository.findByLoginId(request.loginId())
+                .orElseThrow(() -> new GeneralException(ErrorCode.LOGIN_FAILED));
+
+        // 2. 비밀번호 비교 (틀리면 실패)
+        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+            throw new GeneralException(ErrorCode.LOGIN_FAILED);
+        }
+
+        // 3. 토큰 발급
+        String accessToken = jwtProvider.createAccessToken(user.getId());
+        return new LoginResponse(user.getId(), user.getNickname(), accessToken);
     }
 }
