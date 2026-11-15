@@ -31,6 +31,7 @@ public enum ErrorStatus {
 
     // 회원
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON404", "사용자를 찾을 수 없습니다."),
+    LOCATION_REQUIRED(HttpStatus.BAD_REQUEST, "USER4001", "동네를 먼저 설정해 주세요."),
     DUPLICATE_LOGIN_ID(HttpStatus.CONFLICT, "USER409", "이미 사용 중인 아이디입니다."),
     DUPLICATE_EMAIL(HttpStatus.CONFLICT, "USER409", "이미 가입된 이메일입니다."),
     DUPLICATE_USER(HttpStatus.CONFLICT, "USER409", "이미 사용 중인 아이디 또는 이메일입니다."),

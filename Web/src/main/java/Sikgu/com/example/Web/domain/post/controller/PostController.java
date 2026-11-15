@@ -1,12 +1,20 @@
 package Sikgu.com.example.Web.domain.post.controller;
 
 import Sikgu.com.example.Web.domain.post.dto.request.PostCreateRequest;
+import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostCard;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostCreateResponse;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostDetailResponse;
+import Sikgu.com.example.Web.domain.post.enums.Category;
+import Sikgu.com.example.Web.domain.post.enums.PostSort;
+import Sikgu.com.example.Web.domain.post.service.PostQueryService;
 import Sikgu.com.example.Web.domain.post.service.PostService;
 import Sikgu.com.example.Web.global.apiPayload.ApiResponse;
+import Sikgu.com.example.Web.global.apiPayload.PageResponse;
 import Sikgu.com.example.Web.global.security.AuthUser;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -25,6 +34,23 @@ import org.springframework.web.bind.annotation.RestController;
 public class PostController {
 
     private final PostService postService;
+    private final PostQueryService postQueryService;
+
+    /** 공구 목록·검색·카테고리·거리·정렬 */
+    @GetMapping
+    public ApiResponse<PageResponse<PostCard>> search(
+            @AuthenticationPrincipal AuthUser authUser,
+            @RequestParam(required = false) @Size(max = 50, message = "검색어는 50자 이하입니다.") String keyword,
+            @RequestParam(required = false) Category category,
+            @RequestParam(defaultValue = "3") int radius,
+            @RequestParam(defaultValue = "true") boolean recruitingOnly,
+            @RequestParam(defaultValue = "LATEST") PostSort sort,
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "page는 0 이상입니다.") int page,
+            @RequestParam(defaultValue = "9") @Min(value = 1, message = "size는 1 이상입니다.")
+            @Max(value = 50, message = "size는 50 이하입니다.") int size) {
+        return ApiResponse.onSuccess(postQueryService.search(authUser.userId(), keyword, category, radius,
+                recruitingOnly, sort, page, size));
+    }
 
     /** 공구 등록 (채팅방 자동 개설, 호스트 몫 결제) */
     @PostMapping

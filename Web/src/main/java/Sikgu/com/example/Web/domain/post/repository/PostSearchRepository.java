@@ -1,7 +1,18 @@
 package Sikgu.com.example.Web.domain.post.repository;
 
+import org.springframework.data.domain.Page;
+
 /**
- * 공구 목록 검색 (거리 계산이 필요해서 직접 쿼리를 만든다). 목록 기능에서 구현한다.
+ * 공구 목록 검색. 거리 계산(반경 필터·거리 표시)이 필요해서 SQL을 직접 만든다.
  */
 public interface PostSearchRepository {
+
+    /** 조건에 맞는 게시글 ID와 거리를 정렬·페이지 순서대로 돌려준다 */
+    Page<PostSearchRow> search(PostSearchCondition condition);
+
+    /**
+     * @param distanceKm 조회하는 사람의 동네 ↔ 거래 장소 거리 (반올림 전)
+     */
+    record PostSearchRow(Long postId, double distanceKm) {
+    }
 }
