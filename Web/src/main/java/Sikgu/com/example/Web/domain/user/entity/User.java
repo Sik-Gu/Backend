@@ -98,6 +98,11 @@ public class User {
         return user;
     }
 
+    /** 평균 별점 (후기가 없으면 null) */
+    public Double ratingValue() {
+        return ratingAvg == null ? null : ratingAvg.doubleValue();
+    }
+
     /** 동네 변경. 이미 등록한 게시글의 거래 장소는 바뀌지 않는다. */
     public void changeLocation(String dongName, Double latitude, Double longitude) {
         this.dongName = dongName;
