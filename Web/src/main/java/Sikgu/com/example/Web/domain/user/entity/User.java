@@ -103,6 +103,11 @@ public class User {
         return ratingAvg == null ? null : ratingAvg.doubleValue();
     }
 
+    /** 평균 별점 갱신 (후기 작성 시) */
+    public void updateRating(BigDecimal ratingAvg) {
+        this.ratingAvg = ratingAvg;
+    }
+
     /** 정산완료된 공구 1건 추가 (호스트·참여자 모두) */
     public void increaseTradeCount() {
         this.tradeCount++;

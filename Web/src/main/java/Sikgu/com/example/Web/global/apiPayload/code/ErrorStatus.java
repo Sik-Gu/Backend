@@ -70,6 +70,11 @@ public enum ErrorStatus {
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON404", "주문 정보가 아직 없습니다."),
     ORDER_ALREADY_EXISTS(HttpStatus.CONFLICT, "ORDER4091", "이미 주문 정보가 등록됐습니다."),
 
+    // 후기
+    REVIEW_TARGET_INVALID(HttpStatus.BAD_REQUEST, "REVIEW4001", "평가할 수 없는 대상입니다."),
+    REVIEW_DUPLICATED(HttpStatus.CONFLICT, "REVIEW4091", "이미 후기를 작성한 대상입니다."),
+    REVIEW_PERIOD_CLOSED(HttpStatus.CONFLICT, "REVIEW4092", "후기는 정산완료 후 3일 안에만 쓸 수 있습니다."),
+
     // 차단
     CANNOT_BLOCK_SELF(HttpStatus.BAD_REQUEST, "BLOCK4001", "자기 자신은 차단할 수 없습니다."),
     ALREADY_BLOCKED(HttpStatus.CONFLICT, "BLOCK4091", "이미 차단한 사용자입니다."),
