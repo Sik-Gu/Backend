@@ -60,6 +60,9 @@ public enum ErrorStatus {
     HOST_CANNOT_LEAVE(HttpStatus.CONFLICT, "PART4092", "호스트는 참여를 취소할 수 없습니다. 공구 취소를 이용해 주세요."),
     ALREADY_RECEIVED(HttpStatus.CONFLICT, "PART4093", "이미 받았어요를 눌렀습니다."),
 
+    // 수령 문의
+    INQUIRY_IN_PROGRESS(HttpStatus.CONFLICT, "INQ4092", "수령 문의를 운영팀이 처리하고 있습니다."),
+
     // 주문
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON404", "주문 정보가 아직 없습니다."),
     ORDER_ALREADY_EXISTS(HttpStatus.CONFLICT, "ORDER4091", "이미 주문 정보가 등록됐습니다."),

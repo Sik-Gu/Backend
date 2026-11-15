@@ -103,6 +103,11 @@ public class User {
         return ratingAvg == null ? null : ratingAvg.doubleValue();
     }
 
+    /** 정산완료된 공구 1건 추가 (호스트·참여자 모두) */
+    public void increaseTradeCount() {
+        this.tradeCount++;
+    }
+
     /** 동네 변경. 이미 등록한 게시글의 거래 장소는 바뀌지 않는다. */
     public void changeLocation(String dongName, Double latitude, Double longitude) {
         this.dongName = dongName;
