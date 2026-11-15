@@ -41,6 +41,11 @@ public enum ErrorStatus {
     IMAGE_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "IMAGE4131", "이미지는 한 장에 10MB까지 올릴 수 있습니다."),
     IMAGE_SAVE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "IMAGE5001", "이미지 저장에 실패했습니다."),
 
+    // 차단
+    CANNOT_BLOCK_SELF(HttpStatus.BAD_REQUEST, "BLOCK4001", "자기 자신은 차단할 수 없습니다."),
+    ALREADY_BLOCKED(HttpStatus.CONFLICT, "BLOCK4091", "이미 차단한 사용자입니다."),
+    BLOCK_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON404", "차단한 적이 없는 사용자입니다."),
+
     // 포인트 (포인트 담당 구현에서 사용. integration.point.PointClient 참고)
     INSUFFICIENT_POINT(HttpStatus.CONFLICT, "POINT409", "포인트 잔액이 부족합니다."),
     UNPAID_DEBT(HttpStatus.FORBIDDEN, "POINT4031", "미납 미수금이 있어 공구에 참여하거나 공구를 열 수 없습니다."),
