@@ -128,6 +128,7 @@
 | HTTP | code | 상황 | 출처 |
 |---|---|---|---|
 | 409 | `USER409` | 아이디·이메일 중복 | 원본 |
+| 400 | `USER4001` | 동네(위치)가 설정되지 않음 (공구 목록 거리 계산 불가) | 보완 |
 
 ### 1.3 이미지
 
@@ -157,6 +158,7 @@
 | 400 | `INQ4001` | `SHORT_QUANTITY`인데 `receivedUnits`가 없거나 범위 오류 | 보완 |
 | 400 | `INQ4002` | `WRONG_OR_DAMAGED`인데 이미지가 없음 | 보완 |
 | 409 | `INQ4091` | 이미 '받았어요'를 눌러 문의할 수 없음 | 보완 |
+| 409 | `INQ4092` | 문의를 운영팀이 처리 중 (문의중에는 받았어요·재문의 불가) [D10] | 보완 |
 
 ### 1.5 포인트
 
@@ -536,22 +538,22 @@
 | `filter` | MyPostFilter | N | `ALL` |
 | `page`, `size` | int | N | `0`, `20` |
 
-**Response** — `content[]` 한 개는 PostCard([GET /api/posts](#get-apiposts--공구-목록검색필터))에 아래 필드를 더한 것
+**Response** — `content[]` 한 개. `post`는 목록 카드(PostCard, [GET /api/posts](#get-apiposts--공구-목록검색필터))와 같은 형식, 최신 등록순
 ```json
 {
-  "postId": 3,
-  "title": "코스트코 생수 2L x 24 같이 사요",
-  "status": "DISTRIBUTED",
+  "post": { "postId": 3, "title": "코스트코 생수 2L x 24 같이 사요", "status": "DISTRIBUTED", "...": "PostCard 나머지 필드" },
   "myRole": "PARTICIPANT",
+  "myUnits": 1,
   "actionRequired": "CONFIRM_RECEIPT",
-  "reviewProgress": { "written": 1, "total": 4 }
+  "reviewProgress": null
 }
 ```
 
 | 필드 | 설명 |
 |---|---|
-| `actionRequired` | 없으면 `null`. 아래 표 참고 |
-| `reviewProgress` | 완료 탭에서만 값이 있음 |
+| `tab` | `ONGOING` = 정산완료·취소 전, `DONE` = 정산완료·취소. 내가 스스로 참여 취소한 공구는 나오지 않고, 호스트가 취소한 공구는 완료 탭에 나옴 |
+| `actionRequired` | 없으면 `null`. 아래 표 참고. 여러 개면 `PAY_DEBT` → 역할별 할 일 → `WRITE_REVIEW` 순으로 하나만 |
+| `reviewProgress` | 정산완료 공구에서만 `{ "written": 쓴 수, "total": 대상 수 }`, 그 밖에는 `null` |
 
 | `actionRequired` | 대상 | 조건 |
 |---|---|---|
@@ -717,6 +719,7 @@
 | HTTP | code | 상황 |
 |---|---|---|
 | 400 | `COMMON400` | `radius`가 1·3·5가 아님, `size` 범위 오류, 없는 `category`·`sort` 값 |
+| 400 | `USER4001` | 내 동네가 설정되지 않음 |
 | 401 | `AUTH401` | 토큰 없음·만료 |
 
 ### GET /api/posts/{postId} — 공구 상세
@@ -771,7 +774,7 @@
 | `statusTimeline.distributedAt` | 호스트가 나눔 일정·장소를 입력한 시각 [D6] |
 | `imageUrls` | 등록 순서대로. 비어 있으면 프론트가 기본 이미지 표시 |
 | `participants` | 호스트 포함, 참여 취소(환급)한 사람은 빠짐 |
-| `host.mainCategories`, `participants[].mainCategories` | 거래가 많은 카테고리. 공구 진행 기능이 생기기 전까지는 빈 배열 (보완) |
+| `host.mainCategories`, `participants[].mainCategories` | 정산완료 공구가 많은 카테고리 상위 2개. 거래가 없으면 빈 배열 (보완) |
 | `me` | 참여하지 않았으면 `null` |
 | `maxSelectableUnits` | `totalUnits - filledUnits`. 모집중이 아니면 0 |
 | `chatRoomId` | 호스트·참여자에게만 값이 있고, 그 밖에는 `null` |
@@ -1213,6 +1216,7 @@
 | 403 | `AUTH403` | 참여자가 아님 |
 | 409 | `POST409` | `DISTRIBUTED`가 아님 |
 | 409 | `PART4093` | 이미 받았어요를 누름 |
+| 409 | `INQ4092` | 문의중 (운영팀 처리 전에는 스스로 받았어요를 누를 수 없음) [D10] |
 
 ### POST /api/posts/{postId}/inquiries — 수령 문제 문의
 
@@ -1254,6 +1258,7 @@
 | 403 | `AUTH403` | 참여자가 아님 |
 | 409 | `POST409` | `DISTRIBUTED`가 아님 |
 | 409 | `INQ4091` | 이미 받았어요를 누름 |
+| 409 | `INQ4092` | 이미 문의중 |
 
 ### GET /api/posts/{postId}/inquiries — 문의 목록
 
@@ -1836,6 +1841,8 @@
 ## 12. 남은 미정 사항
 
 API에 영향을 주는 것만 모았습니다. 전체 목록은 [DB.md 8.1](DB.md)을 참고하세요.
+
+> 구현하면서 생긴 결정 필요 사항(모집 마감 자동 취소, 문의 처리, 관리자 API, 포인트·채팅 연동 등)은 [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md)에 정리했습니다.
 
 - [ ] 모집 마감 시 인원 미달 자동 취소 (보류) — 정해지면 스케줄러 동작과 `CANCELLED` 사유 추가
 - [ ] 문의중 참여자가 있을 때 나머지 몫을 먼저 정산할지, 전체 정산을 미룰지 (현재 명세: 전원 `RECEIVED`여야 정산)

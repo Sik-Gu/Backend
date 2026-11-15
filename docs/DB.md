@@ -159,9 +159,13 @@ Spring Security `BCryptPasswordEncoder` 사용 (D7)
 | received_at | TIMESTAMP | NULL | [제안] '받았어요' 누른 시각 또는 자동 수령 처리 시각 (D10) |
 | auto_confirmed | BOOLEAN | NOT NULL, DEFAULT FALSE | [제안] 3일 지나 자동으로 수령 처리됐는지 (D10) |
 | joined_at | TIMESTAMP | | [반영] 참여 일시 |
+| adjustment_amount | BIGINT | NULL | [구현] 영수증 차액 정산 금액. 양수 = 추가 청구, 음수 = 환급 (D9) |
+| adjustment_debt_amount | BIGINT | NULL | [구현] 추가 청구 중 잔액 부족으로 미수금이 된 금액 (D9) |
 | | | UNIQUE(post_id, user_id) | [반영] |
 
 > 원본의 "시스템 매칭/유저 주도" 컬럼은 MVP에서 제거·보류 (유저 주도형만)
+>
+> [구현] (post_id, user_id) UNIQUE라서, 참여 취소(REFUNDED) 후 같은 공구에 다시 참여하면 새 행을 만들지 않고 기존 행을 다시 PAID로 바꿔 쓴다
 
 ### 4.5 `orders` 주문정보
 
@@ -202,7 +206,7 @@ Spring Security `BCryptPasswordEncoder` 사용 (D7)
 | created_at | TIMESTAMP | | [제안] |
 | resolved_at | TIMESTAMP | NULL | [제안] |
 
-> 이미지: `inquiry_images(inquiry_image_id, inquiry_id, image_url)` [제안] — WRONG_OR_DAMAGED일 때 1장 이상
+> 이미지: `inquiry_images(inquiry_id, sort_order, image_url)` [구현] — JPA 컬렉션 테이블이라 별도 PK 없음. WRONG_OR_DAMAGED일 때 1장 이상
 
 ### 4.8 `reviews` 후기
 
@@ -219,7 +223,7 @@ Spring Security `BCryptPasswordEncoder` 사용 (D7)
 
 > **작성 기한**: `posts.settled_at + 3일`까지만 작성 가능, **수정 불가** (D12)
 
-> 태그 저장 [반영] → `review_tags(review_id FK, tag ReviewTag, PK(review_id, tag))` [제안]
+> 태그 저장 [반영] → `review_tags(review_id FK, tag ReviewTag)` [구현] (JPA 컬렉션 테이블)
 
 ### 4.9 `reports` 신고
 
@@ -235,7 +239,9 @@ Spring Security `BCryptPasswordEncoder` 사용 (D7)
 | created_at | TIMESTAMP | | |
 | processed_at | TIMESTAMP | NULL | |
 
-> 관련 메시지·증빙 이미지 [반영] → `report_messages(report_id, message_id)`, `report_images(report_id, image_url)` [제안]
+> 관련 메시지·증빙 이미지 [반영] → `report_messages(report_id, message_id)`, `report_images(report_id, sort_order, image_url)` [구현]
+>
+> [구현] `violation_stage` 컬럼 추가 (TRADE_VIOLATION일 때 위반 단계: RECRUITING·PAYMENT·ORDER·RECEIPT·SHIPPING·DISTRIBUTION)
 
 ### 4.10 `blocks` 차단 [반영·신규]
 
