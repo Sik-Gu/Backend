@@ -36,4 +36,11 @@ public class PostController {
         postService.updatePost(userId, postId, request);
         return ApiResponse.onSuccess("공구 수정 성공", null);
     }
+
+    @DeleteMapping("/{postId}")
+    public ApiResponse<Void> cancelPost(@AuthenticationPrincipal Long userId,
+                                        @PathVariable Long postId) {
+        postService.cancelPost(userId, postId);
+        return ApiResponse.onSuccess("공구 취소 성공", null);
+    }
 }

@@ -133,4 +133,9 @@ public class Post extends BaseEntity {
             this.longitude = longitude;
         }
     }
+
+    // 취소 (호스트가 모집 중에 취소)
+    public void cancel() {
+        this.status = PostStatus.CANCELED;
+    }
 }

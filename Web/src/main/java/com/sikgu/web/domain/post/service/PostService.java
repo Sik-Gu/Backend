@@ -22,6 +22,7 @@ public class PostService {
     private final PostRepository postRepository;
     private final UserRepository userRepository;
 
+    // 공구 등록
     @Transactional
     public CreatePostResponse createPost(Long userId, CreatePostRequest request) {
         // 1. 호스트 = 로그인한 사용자
@@ -59,6 +60,7 @@ public class PostService {
         return new CreatePostResponse(savedPost.getId());
     }
 
+    // 공구 상세 조회 (조회수 +1)
     @Transactional
     public PostDetailResponse getPost(Long postId) {
         // 1. 조회수 +1 (0줄이면 게시글 없음)
@@ -74,17 +76,10 @@ public class PostService {
         return PostDetailResponse.from(post);
     }
 
+    // 공구 수정 (호스트, 모집중일 때만)
     @Transactional
     public void updatePost(Long userId, Long postId, UpdatePostRequest request) {
-        Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new GeneralException(ErrorCode.POST_NOT_FOUND));
-
-        if (!post.isHost(userId)) {
-            throw new GeneralException(ErrorCode.NOT_POST_HOST);
-        }
-        if (!post.isRecruiting()) {
-            throw new GeneralException(ErrorCode.POST_NOT_RECRUITING);
-        }
+        Post post = getRecruitingPostByHost(userId, postId);
         // TODO(5번 참여): 호스트 말고 다른 참여자가 있으면 수정 불가
 
         UpdatePostRequest.TradePlaceRequest tradePlace = request.tradePlace();
@@ -99,5 +94,27 @@ public class PostService {
                 tradePlace != null ? tradePlace.latitude() : null,
                 tradePlace != null ? tradePlace.longitude() : null
         );
+    }
+
+    // 공구 취소 (호스트, 모집중일 때만)
+    @Transactional
+    public void cancelPost(Long userId, Long postId) {
+        Post post = getRecruitingPostByHost(userId, postId);
+        // TODO(5번 참여·포인트): 참여자 전원 참여 상태 CANCELED + 포인트 보류 RELEASED(환급)
+        post.cancel();
+    }
+
+    // 게시글 조회 + 호스트 확인 + 모집중 확인 (수정·취소 공통)
+    private Post getRecruitingPostByHost(Long userId, Long postId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new GeneralException(ErrorCode.POST_NOT_FOUND));
+
+        if (!post.isHost(userId)) {
+            throw new GeneralException(ErrorCode.NOT_POST_HOST);
+        }
+        if (!post.isRecruiting()) {
+            throw new GeneralException(ErrorCode.POST_NOT_RECRUITING);
+        }
+        return post;
     }
 }
