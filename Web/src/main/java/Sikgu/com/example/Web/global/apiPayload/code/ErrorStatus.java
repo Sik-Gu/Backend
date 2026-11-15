@@ -61,6 +61,9 @@ public enum ErrorStatus {
     ALREADY_RECEIVED(HttpStatus.CONFLICT, "PART4093", "이미 받았어요를 눌렀습니다."),
 
     // 수령 문의
+    INVALID_RECEIVED_UNITS(HttpStatus.BAD_REQUEST, "INQ4001", "수량 부족 문의는 실제로 받은 단위(0 이상, 내 단위 미만)가 필요합니다."),
+    INQUIRY_IMAGE_REQUIRED(HttpStatus.BAD_REQUEST, "INQ4002", "다른 상품·파손 문의는 사진이 1장 이상 필요합니다."),
+    INQUIRY_AFTER_RECEIVED(HttpStatus.CONFLICT, "INQ4091", "이미 받았어요를 눌러 문의할 수 없습니다."),
     INQUIRY_IN_PROGRESS(HttpStatus.CONFLICT, "INQ4092", "수령 문의를 운영팀이 처리하고 있습니다."),
 
     // 주문
