@@ -73,7 +73,7 @@ class ReceiptServiceTest {
         post.markShipping(NOW);
         post.markDistributed(NOW);
         hostPa = Participation.host(post, host, 2, NOW);
-        hostPa.confirmReceipt(NOW, false); // 나눔 일정 입력 때 호스트는 받은 것으로 처리
+        hostPa.confirmReceipt(NOW); // 나눔 일정 입력 때 호스트는 받은 것으로 처리
         aPa = Participation.participant(post, a, 1, NOW);
         bPa = Participation.participant(post, b, 3, NOW);
 
@@ -89,13 +89,13 @@ class ReceiptServiceTest {
 
         assertThat(result).isEqualTo(new ReceiptResult(ReceiptStatus.RECEIVED, PostStatus.DISTRIBUTED));
         assertThat(aPa.getReceivedAt()).isEqualTo(NOW);
-        assertThat(aPa.isAutoConfirmed()).isFalse();
+        assertThat(bPa.getReceiptStatus()).isEqualTo(ReceiptStatus.WAITING); // 자동 처리 없음, 직접 눌러야 함
         verify(pointClient, never()).settle(any(), any());
     }
 
     @Test
     void 마지막_사람이_받으면_정산하고_거래_횟수를_올리고_채팅방을_닫는다() {
-        aPa.confirmReceipt(NOW, false);
+        aPa.confirmReceipt(NOW);
 
         ReceiptResult result = service.confirm(30L, 3L);
 
@@ -120,7 +120,7 @@ class ReceiptServiceTest {
 
     @Test
     void 이미_받았으면_PART4093() {
-        aPa.confirmReceipt(NOW, false);
+        aPa.confirmReceipt(NOW);
 
         assertThatThrownBy(() -> service.confirm(20L, 3L))
                 .extracting("errorStatus").isEqualTo(ErrorStatus.ALREADY_RECEIVED);
@@ -149,35 +149,5 @@ class ReceiptServiceTest {
     void 참여자가_아니면_AUTH403() {
         assertThatThrownBy(() -> service.confirm(99L, 3L))
                 .extracting("errorStatus").isEqualTo(ErrorStatus.NOT_PARTICIPANT);
-    }
-
-    @Test
-    void 자동_수령은_대기중인_사람만_처리하고_전원_받았으면_정산한다() {
-        int count = service.autoConfirm(3L);
-
-        assertThat(count).isEqualTo(2);
-        assertThat(aPa.isAutoConfirmed()).isTrue();
-        assertThat(bPa.getReceiptStatus()).isEqualTo(ReceiptStatus.RECEIVED);
-        assertThat(hostPa.isAutoConfirmed()).isFalse(); // 이미 받은 호스트는 그대로
-        assertThat(post.getStatus()).isEqualTo(PostStatus.SETTLED);
-    }
-
-    @Test
-    void 자동_수령은_문의중인_사람을_건드리지_않아_정산되지_않는다() {
-        aPa.startInquiry();
-
-        service.autoConfirm(3L);
-
-        assertThat(aPa.getReceiptStatus()).isEqualTo(ReceiptStatus.INQUIRING);
-        assertThat(bPa.getReceiptStatus()).isEqualTo(ReceiptStatus.RECEIVED);
-        assertThat(post.getStatus()).isEqualTo(PostStatus.DISTRIBUTED);
-    }
-
-    @Test
-    void 이미_정산된_공구는_자동_수령하지_않는다() {
-        Post settled = Fixtures.post(5L, host, NOW.plusDays(2));
-        given(postRepository.findByIdForUpdate(5L)).willReturn(Optional.of(settled));
-
-        assertThat(service.autoConfirm(5L)).isZero();
     }
 }

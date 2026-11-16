@@ -153,7 +153,6 @@ class OrderServiceTest {
         assertThat(detail.totalPrice()).isEqualTo(29040);
         assertThat(detail.receiptImageUrls()).containsExactly("/r.jpg");
         assertThat(detail.heldPoint()).isEqualTo(29040L);
-        assertThat(detail.autoConfirmAt()).isNull();
     }
 
     @Test
@@ -195,7 +194,6 @@ class OrderServiceTest {
                 new DistributionRequest(distributeAt));
 
         assertThat(response.postStatus()).isEqualTo(PostStatus.DISTRIBUTED);
-        assertThat(response.autoConfirmAt()).isEqualTo(distributeAt.plusDays(3));
         assertThat(response.distributePlace()).isEqualTo("정문 편의점 앞");
         assertThat(order.getDistributePlace()).isEqualTo("정문 편의점 앞");
         assertThat(hostPa.getReceiptStatus()).isEqualTo(ReceiptStatus.RECEIVED);
