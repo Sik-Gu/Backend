@@ -26,7 +26,6 @@ public class SecurityConfig {
     // 토큰 없이 부를 수 있는 API (명세서 권한 '공개')
     private static final String[] PUBLIC_URLS = {
             "/api/health",
-            "/api/auth/check-id",
             "/api/auth/signup",
             "/api/auth/login",
             "/error"

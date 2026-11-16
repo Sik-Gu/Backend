@@ -1,6 +1,9 @@
 package com.sikgu.web.domain.user.service;
 
-import com.sikgu.web.domain.user.dto.*;
+import com.sikgu.web.domain.user.dto.LoginRequest;
+import com.sikgu.web.domain.user.dto.LoginResponse;
+import com.sikgu.web.domain.user.dto.SignupRequest;
+import com.sikgu.web.domain.user.dto.SignupResponse;
 import com.sikgu.web.domain.user.entity.User;
 import com.sikgu.web.domain.user.repository.UserRepository;
 import com.sikgu.web.global.exception.ErrorCode;
@@ -10,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -21,20 +26,18 @@ public class AuthService {
     private final NicknameGenerator nicknameGenerator;
     private final JwtProvider jwtProvider;
 
-    public CheckLoginIdResponse checkLoginId(String loginId) {
-        boolean available = !userRepository.existsByLoginId(loginId);
-        return new CheckLoginIdResponse(loginId, available);
-    }
-
+    // 회원가입
     @Transactional
     public SignupResponse signup(SignupRequest request) {
-        if (userRepository.existsByLoginId(request.loginId())) {
-            throw new GeneralException(ErrorCode.LOGIN_ID_DUPLICATED);
+        String email = normalizeEmail(request.email());
+
+        if (userRepository.existsBySchoolEmail(email)) {
+            throw new GeneralException(ErrorCode.EMAIL_DUPLICATED);
         }
 
         SignupRequest.LocationRequest location = request.location();
         User user = User.builder()
-                .loginId(request.loginId())
+                .schoolEmail(email)
                 .password(passwordEncoder.encode(request.password()))
                 .nickname(nicknameGenerator.generate())
                 .dongName(location.dongName())
@@ -46,18 +49,21 @@ public class AuthService {
         return new SignupResponse(savedUser.getId(), savedUser.getNickname());
     }
 
+    // 로그인
     public LoginResponse login(LoginRequest request) {
-        // 1. 아이디로 사용자 찾기 (없으면 실패)
-        User user = userRepository.findByLoginId(request.loginId())
+        User user = userRepository.findBySchoolEmail(normalizeEmail(request.email()))
                 .orElseThrow(() -> new GeneralException(ErrorCode.LOGIN_FAILED));
 
-        // 2. 비밀번호 비교 (틀리면 실패)
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
             throw new GeneralException(ErrorCode.LOGIN_FAILED);
         }
 
-        // 3. 토큰 발급
         String accessToken = jwtProvider.createAccessToken(user.getId());
         return new LoginResponse(user.getId(), user.getNickname(), accessToken);
+    }
+
+    // 이메일은 소문자로 통일해서 저장·조회
+    private String normalizeEmail(String email) {
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 }

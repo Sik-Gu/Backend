@@ -18,18 +18,14 @@ public class User extends BaseEntity {
     @Column(name = "user_id")
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 30)
-    private String loginId;
+    @Column(nullable = false, unique = true, length = 100)
+    private String schoolEmail;   // 로그인 아이디 겸 학교 인증 이메일
 
     @Column(nullable = false, length = 255)
     private String password;
 
     @Column(nullable = false, unique = true, length = 30)
     private String nickname;
-
-    // 이메일 인증 붙이기 전까지 NULL 허용
-    @Column(unique = true, length = 100)
-    private String schoolEmail;
 
     @Column(length = 50)
     private String universityName;
@@ -47,9 +43,9 @@ public class User extends BaseEntity {
     private Double rating;
 
     @Builder
-    private User(String loginId, String password, String nickname,
+    private User(String schoolEmail, String password, String nickname,
                  String dongName, Double latitude, Double longitude) {
-        this.loginId = loginId;
+        this.schoolEmail = schoolEmail;
         this.password = password;
         this.nickname = nickname;
         this.dongName = dongName;

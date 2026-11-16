@@ -14,10 +14,6 @@ public class AuthController {
 
     private final AuthService authService;
 
-    @GetMapping("/check-id")
-    public ApiResponse<CheckLoginIdResponse> checkLoginId(@RequestParam String loginId) {
-        return ApiResponse.onSuccess(authService.checkLoginId(loginId));
-    }
 
     @PostMapping("/signup")
     public ApiResponse<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
