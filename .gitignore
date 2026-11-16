@@ -25,3 +25,8 @@ uploads/
 
 # 내용 정리용
 SIKGU_SPEC.md
+# 빌드 결과물
+.gradle/
+build/
+bin/
+*.patch
