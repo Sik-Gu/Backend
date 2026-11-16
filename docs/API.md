@@ -189,7 +189,7 @@
 | 409 | `REVIEW4091` | 같은 대상에게 이미 후기를 씀 | 보완 |
 | 409 | `REVIEW4092` | **작성 기간이 아님** (정산완료 전이거나 정산 후 3일 지남) | 보완 [D12] |
 | 400 | `REPORT4001` | 본인을 신고함 | 보완 |
-| 400 | `REPORT4002` | 사유별 필수 값 누락 | 보완 |
+| 400 | `REPORT4002` | 사유별 필수 값 누락 (채팅: 메시지, 거래 위반: 위반 단계, 기타: 내용) | 보완 |
 | 400 | `BLOCK4001` | 본인을 차단함 | 보완 |
 | 409 | `BLOCK4091` | 이미 차단한 사용자 | 보완 |
 
@@ -222,7 +222,7 @@
 | `MessageType` | `TEXT`, `IMAGE`, `SYSTEM` | `IMAGE` 추가 [D13] |
 | `ImageType` | `POST`, `RECEIPT`, `INQUIRY`, `REPORT`, `CHAT` | 업로드 용도 (보완), `CHAT` [D13] |
 | `ReviewTag` | `PUNCTUAL` 시간 약속, `CLEAN_SPLIT` 소분 깔끔, `FAST_REPLY` 응답 빠름, `FAST_PAYMENT` 결제 빠름 | |
-| `ReportReason` | `POST_HARMFUL`, `CHAT_ABUSE`, `TRADE_VIOLATION`, `ETC` | 신고 대상은 항상 사용자 |
+| `ReportReason` | `CHAT_ABUSE`, `TRADE_VIOLATION`, `ETC` | 신고 대상은 항상 사용자 (게시글 신고 없음) [D23] |
 | `ReportStatus` | `PENDING` 처리 전, `DONE` 처리 완료 | |
 
 ---
@@ -930,7 +930,7 @@
 | 3 | `ORDERED` | 영수증 사진 등록. **전원 장소 동의 필요** (D20) | 없음 (차액 정산 안 함, D21) | `POST .../order` |
 | 4 | `SHIPPING` | 배송 시작 | - | `PATCH .../order/shipping` |
 | 5 | `DISTRIBUTED` | **호스트가 나눔 일시 입력** (장소는 합의한 곳) [D6] | - | `PATCH .../order/distribution` |
-| 6 | `SETTLED` | 전원 `RECEIVED` (직접 또는 **나눔 예정 시각 + 3일 자동** [D10]) | CAPTURED → 호스트 정산 (**인센티브 없음** [D11]) | `POST .../receipt`, 스케줄러 |
+| 6 | `SETTLED` | 전원이 직접 '받았어요'를 눌러 `RECEIVED` (**자동 처리 없음** [D22]) | CAPTURED → 호스트 정산 (**인센티브 없음** [D11]) | `POST .../receipt` |
 | 예외 | `CANCELLED` | 호스트 취소 | RELEASED → 호스트 포함 전원 환급 | `DELETE /api/posts/{postId}` |
 
 - `RECRUITED`에서 참여 취소가 일어나면 `RECRUITING`으로 돌아가 빈자리를 다시 모집합니다.
@@ -1078,7 +1078,6 @@
       "paidPoint": 9680,
       "paymentStatus": "PAID",
       "receiptStatus": "RECEIVED",
-      "autoConfirmed": false,
       "isMe": false
     }
   ]
@@ -1090,7 +1089,6 @@
 | `participants[]` | **호스트 포함** [D8] |
 | `paidPoint` | 처음 결제한 금액 (차액 조정 전) |
 | `receiptStatus` | 화면의 '수령확인' 단계는 `receivedCount / totalCount`로 표시 [D6] |
-| `autoConfirmed` | 3일이 지나 자동으로 수령 처리됐는지 [D10] |
 
 **Errors**: `AUTH403`
 
@@ -1144,7 +1142,6 @@
   "registeredAt": "2026-10-29T10:20:00",
   "distributeAt": "2026-10-30T19:00:00",
   "distributePlace": "○○대학교 정문 편의점 앞",
-  "autoConfirmAt": "2026-11-02T19:00:00",
   "heldPoint": 29040
 }
 ```
@@ -1153,7 +1150,6 @@
 |---|---|
 | `courier`, `trackingNumber` | 배송 시작 전, 또는 오프라인 구매면 `null` |
 | `distributeAt`, `distributePlace` | 나눔 일시 입력 전에는 `null`. 장소는 주문 전에 합의한 곳 |
-| `autoConfirmAt` | `distributeAt + 3일`. 이때까지 '받았어요'를 안 누르면 자동 수령 처리 [D10] |
 | `heldPoint` | 이 공구에서 아직 보류 중인 포인트 합계 |
 
 **Errors**: `AUTH403`, `COMMON404`
@@ -1196,13 +1192,13 @@
   2. 게시글 `DISTRIBUTED` (`distributedAt` = 입력 시각)
   3. 호스트 본인 참여는 `RECEIVED`로 처리, 참여자는 `WAITING`
 - **호스트의 별도 '나눔완료' 버튼은 없습니다.** 참여자는 받으면 각자 '받았어요'를 누릅니다.
-- `distributeAt + 3일`이 지나면 '받았어요'를 안 누른 `WAITING` 참여자를 스케줄러가 자동으로 `RECEIVED` 처리합니다. 문의중(`INQUIRING`)은 제외 [D10]
+- **자동 수령 처리는 없습니다.** 참여자가 '받았어요'를 누르기 전까지 `WAITING`으로 남고, 전원이 눌러야 정산됩니다 [D22]
 
 **Request Body**
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `distributeAt` | datetime | Y | 나눔 예정 일시. 자동 수령 처리 기준 [D10] |
+| `distributeAt` | datetime | Y | 나눔 예정 일시 |
 
 ```json
 { "distributeAt": "2026-10-30T19:00:00" }
@@ -1210,7 +1206,7 @@
 
 **Response**
 ```json
-{ "postStatus": "DISTRIBUTED", "distributedAt": "2026-10-29T18:00:00", "distributePlace": "○○대학교 정문 편의점 앞", "autoConfirmAt": "2026-11-02T19:00:00" }
+{ "postStatus": "DISTRIBUTED", "distributedAt": "2026-10-29T18:00:00", "distributePlace": "○○대학교 정문 편의점 앞" }
 ```
 
 **Errors**
@@ -1252,7 +1248,7 @@
 
 - 권한: 참여자 · 화면: 03-F
 - 선행조건: `DISTRIBUTED`, 내 수령 상태가 `WAITING`
-- 처리: 문의를 `OPEN`으로 저장하고 내 수령 상태를 `INQUIRING`으로 바꿉니다. **운영팀이 확인하고 처리합니다** [D10]. 문의중이면 자동 수령 처리 대상에서 빠집니다.
+- 처리: 문의를 `OPEN`으로 저장하고 내 수령 상태를 `INQUIRING`으로 바꿉니다. **운영팀이 확인하고 처리합니다** [D10]. 문의중인 사람이 있으면 정산되지 않습니다.
 
 **Request Body**
 
@@ -1752,24 +1748,22 @@
 ### POST /api/reports — 사용자 신고
 
 - 권한: 로그인 · 화면: 08-B, 03-D
-- 신고 대상은 항상 사용자입니다. 신고는 `PENDING`으로 저장하고, 처리는 운영팀이 합니다 (관리자 화면은 나중에 추가) [D10]
+- 신고 대상은 항상 사용자입니다. 게시글 신고는 없습니다 [D23]. 신고는 `PENDING`으로 저장하고, 처리는 운영팀이 합니다 (관리자 화면은 나중에 추가) [D10]
 
 **Request Body**
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `targetUserId` | long | Y | 신고 대상 (본인 불가) |
-| `postId` | long | N | 관련 게시글 |
 | `reason` | ReportReason | Y | 신고 사유 |
 | `detail.messageIds` | long[] | 조건 | `CHAT_ABUSE`면 1개 이상 |
 | `detail.violationStage` | string | 조건 | `TRADE_VIOLATION`이면 위반 단계 |
-| `content` | string | N | 내용 |
+| `content` | string | 조건 | 내용. `ETC`면 필수 |
 | `imageUrls` | string[] | N | 증빙 사진 |
 
 ```json
 {
   "targetUserId": 12,
-  "postId": 3,
   "reason": "TRADE_VIOLATION",
   "detail": { "messageIds": [], "violationStage": "RECEIPT" },
   "content": "영수증 금액과 실제 상품이 달라요",
@@ -1788,7 +1782,7 @@
 |---|---|---|
 | 400 | `COMMON400` | 필수 값 누락 |
 | 400 | `REPORT4001` | 본인 신고 |
-| 400 | `REPORT4002` | 사유별 필수 값 누락 |
+| 400 | `REPORT4002` | 사유별 필수 값 누락 (채팅: 메시지, 거래 위반: 위반 단계, 기타: 내용) |
 | 404 | `COMMON404` | 대상 사용자 없음 |
 
 ### POST /api/users/{userId}/block — 차단
@@ -1843,7 +1837,7 @@
 |---|---|---|---|---|
 | 1 | `PostStatus` `DISTRIBUTED` | 나눔완료·수령확인 | 나눔 진행·수령확인 대기 | D6 |
 | 2 | `PATCH .../order/distribution` | "나눔 일정·장소 + 나눔 완료" | **나눔 일정·장소 입력**. 호스트 나눔완료 버튼 없음, 입력하면 바로 `DISTRIBUTED` | D6 |
-| 3 | 자동 수령 처리 | 기한 없음 | 나눔 예정 시각(`distributeAt`) + 3일, 문의중 제외. 응답에 `autoConfirmAt` 추가 | D10 |
+| 3 | 자동 수령 처리 | 기한 없음 | ~~나눔 예정 시각 + 3일 자동 처리~~ → **자동 처리 없음** (원본과 같음) | D10 → D22 |
 | 4 | `PointTxType` | `INCENTIVE` 있음 | `INCENTIVE` 삭제 | D11 |
 | 5 | 상태 전이표 7단계 | "CAPTURED → 호스트 정산 + 인센티브" | 인센티브 제거 | D11 |
 | 6 | 포인트 서비스 시그니처 | `pay`, `refund`, `settle`, `giveIncentive` | `giveIncentive` 삭제, 차액 조정(`adjust`)·미수금 납부(`repayDebt`) 추가 | D9, D11 |

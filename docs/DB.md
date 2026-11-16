@@ -32,7 +32,7 @@
 | `PointTxType` | `CHARGE`, `PAYMENT`, `REFUND`, `SETTLEMENT`, `ADJUSTMENT_REFUND` 차액 환급, `ADJUSTMENT_CHARGE` 차액 추가 청구, `DEBT_REPAYMENT` 미수금 납부 |
 | `DebtStatus` | `UNPAID` 미납, `PAID` 납부 완료, `WRITTEN_OFF` 탕감·종결 |
 | `UserStatus` | `ACTIVE` 정상, `SUSPENDED` 정지 (D9 미수금 기한 초과 10회 이상) |
-| `ReportReason` | `POST_HARMFUL`, `CHAT_ABUSE`, `TRADE_VIOLATION`, `ETC` |
+| `ReportReason` | `CHAT_ABUSE`, `TRADE_VIOLATION`, `ETC` (D23, `POST_HARMFUL` 삭제) |
 | `ReportStatus` | `PENDING` 처리 전, `DONE` 처리 완료 |
 | `MessageType` | `TEXT`, `IMAGE` (D13), `SYSTEM` |
 | `ChatRoomStatus` | `ONGOING`, `CLOSED` (채팅 목록 탭 기준) |
@@ -161,8 +161,7 @@ Spring Security `BCryptPasswordEncoder` 사용 (D7)
 | units | INT | | [원본] 수량 |
 | payment_status | PaymentStatus | | [원본] |
 | receipt_status | ReceiptStatus | | [원본] 수령 상태 |
-| received_at | TIMESTAMP | NULL | [제안] '받았어요' 누른 시각 또는 자동 수령 처리 시각 (D10) |
-| auto_confirmed | BOOLEAN | NOT NULL, DEFAULT FALSE | [제안] 3일 지나 자동으로 수령 처리됐는지 (D10) |
+| received_at | TIMESTAMP | NULL | '받았어요' 누른 시각 (자동 수령 없음, D22) |
 | joined_at | TIMESTAMP | | [반영] 참여 일시 |
 | place_agreed | BOOLEAN | NOT NULL, DEFAULT FALSE | 나눔 장소 동의 여부 (D20). 호스트는 항상 TRUE, 장소가 바뀌면 참여자는 FALSE로 초기화 |
 | leave_reason | VARCHAR(30) | NULL | 나간 이유: `CHANGED_MIND`, `PLACE_DISAGREEMENT` (D20) |
@@ -182,7 +181,7 @@ Spring Security `BCryptPasswordEncoder` 사용 (D7)
 | courier | VARCHAR | NULL | [반영] 배송 시작 시 입력 |
 | tracking_number | VARCHAR | NULL | [반영] |
 | registered_at | TIMESTAMP | | [원본] |
-| distribute_at | TIMESTAMP | NULL | [원본] 나눔 예정 일시. '받았어요' 미클릭 시 **자동 정산 기준: + 3일** (D10) |
+| distribute_at | TIMESTAMP | NULL | [원본] 나눔 예정 일시 (표시용. 지나도 자동 수령 처리 없음, D22) |
 | distribute_place | VARCHAR | NULL | [원본] 나눔 장소. 주문 전에 합의한 `posts.distribution_place_name`을 나눔 일시 입력 때 복사 (D20) |
 
 ### 4.6 `receipt_images` 영수증 사진
@@ -236,8 +235,7 @@ Spring Security `BCryptPasswordEncoder` 사용 (D7)
 |---|---|---|---|
 | report_id | BIGSERIAL | PK | |
 | reporter_id | BIGINT | FK → users | |
-| target_id | BIGINT | FK → users | 사용자만 신고 가능 (게시글 신고 X) |
-| post_id | BIGINT | FK → posts, NULL | [반영] 관련 게시글 |
+| target_id | BIGINT | FK → users | 사용자만 신고 가능 (게시글 신고 X, D23) |
 | reason | ReportReason | | [반영] |
 | content | TEXT | | |
 | status | ReportStatus | | |
@@ -412,9 +410,8 @@ erDiagram
 | 취소/인원 미달 | `DELETE` | `point_holds → RELEASED`, held → available, `point_transactions(REFUND)`, `payment_status=REFUNDED` |
 | 나눔 | 호스트가 나눔 일정·장소 입력 (`PATCH .../order/distribution`) | `orders.distribute_at`, `distribute_place` 저장, `posts.status=DISTRIBUTED`, `distributed_at` 기록 |
 | 수령확인 | 참여자 각자 '받았어요' (`POST .../receipt`) | `participations.receipt_status=RECEIVED` |
-| 자동 수령 처리 | 나눔 예정 시각(`distribute_at`) + 3일 경과 (스케줄러) | '받았어요' 안 누른 `WAITING` 참여자 → `RECEIVED`, `auto_confirmed = true`. `INQUIRING`(문의중)은 제외 (D10) |
 | 수령 문의 처리 | 운영팀 (D10) | `receipt_inquiries` 처리 결과에 따라 해당 참여자 보류분 환불(`REFUND`) 또는 `RECEIVED` 처리 |
-| 정산 | 전원 `RECEIVED` (직접 또는 자동) | 호스트 포함 전체 `point_holds → CAPTURED`, 호스트 지갑 + (총 금액 = 본인 보류분 포함), `point_transactions(SETTLEMENT)`, `posts.status=SETTLED` |
+| 정산 | 전원 `RECEIVED` (직접 누른 경우만, D22) | 호스트 포함 전체 `point_holds → CAPTURED`, 호스트 지갑 + (총 금액 = 본인 보류분 포함), `point_transactions(SETTLEMENT)`, `posts.status=SETTLED` |
 
 ### 동시성·정합성 처리 [결정]
 
@@ -498,12 +495,13 @@ Optional<Post> findByIdForUpdate(@Param("postId") Long postId);
 | 추가 청구 상한 | 없음 | D9 |
 | 미수금 패널티 | 1 미수금 기록(기한 7일) → 2 이용 제한 → 3 기한 초과 기록 → 4 누적 10회 계정 정지, 신뢰도 반영 X | D9 |
 | 미수금 있을 때 호스트 정산 | 받은 만큼 먼저 정산, 납부되면 추가 지급 | D9 |
-| '받았어요' 자동 처리 | 나눔 예정 시각 + 3일 | D10 |
+| '받았어요' 자동 처리 | **없음**. 참여자가 누를 때까지 대기 (3일 자동 처리 폐기) | D22 |
 | 수령 문의 해결 주체 | 운영팀 | D10 |
 | 관리자(운영팀) 화면 | 추후 추가 (DB는 미리 준비) | D10 |
 | 호스트 인센티브 | 없음 | D11 |
 | 후기 작성 기한 / 수정 | 정산완료 후 3일까지, 수정 불가 | D12 |
 | 채팅 이미지 전송 | 지원 | D13 |
+| 신고 대상 | 사람만 (게시글 신고·`post_id` 없음) | D23 |
 | 비밀번호 저장 | BCrypt (`password_salt` 컬럼 없음) | D7 |
 | 주소 저장 방식 | 동 이름 검색 + GPS 현재 위치 **둘 다 지원**. 동 이름 + 위경도 저장 | D14 |
 | 위치 변환 주체 | 프론트(카카오맵 SDK). 백엔드 위치 API 없음 | D15 |
@@ -561,7 +559,7 @@ Optional<Post> findByIdForUpdate(@Param("postId") Long postId);
   - 호스트는 나눔 일정·장소만 입력 (`PATCH .../order/distribution`, API 분리 안 함) → 이때 `DISTRIBUTED`
   - 수령확인은 참여자 각자 '받았어요' → `participations.receipt_status`로 관리
   - 전원 `RECEIVED` → `SETTLED` (호스트에게 정산)
-  - '받았어요' 미클릭 시 자동 정산 기한은 나눔 예정 시각(`orders.distribute_at`) + 3일 (D10에서 확정)
+  - ~~'받았어요' 미클릭 시 자동 정산 기한은 나눔 예정 시각 + 3일 (D10)~~ → **D22에서 폐기**, 자동 처리 없음
 - **이유**
   - 직접 만나서 나눠주는 방식이라, 호스트의 "나눔완료"와 참여자의 "받았어요"가 사실상 같은 순간에 일어남 → 호스트 버튼이 하는 일이 없음
   - 수령확인은 공구 전체가 아니라 참여자 한 명 한 명의 상태 → 게시글 상태가 아니라 참여 테이블에 두는 게 맞음
@@ -648,7 +646,7 @@ Optional<Post> findByIdForUpdate(@Param("postId") Long postId);
   - 신뢰도 계산 방식이 정해지면 미정산 이력 반영 여부 재검토
   - 금액 확인은 MVP에선 호스트 직접 입력 + 영수증 사진 + 참여자 확인. OCR(클로바 OCR 등) 자동 인식은 추후 (`orders.ocr_amount` 컬럼 추가로 대응 가능)
 
-### D10. '받았어요' 자동 처리 3일, 수령 문의는 운영팀이 해결 (2026-11-14)
+### D10. '받았어요' 자동 처리 3일, 수령 문의는 운영팀이 해결 (2026-11-14) — **2026-11-16 자동 처리 폐기 (D22)**
 - **결정**
   - 나눔 예정 시각(`orders.distribute_at`) + **3일** 안에 '받았어요'를 안 누르면 자동으로 수령 처리
   - 수령 문의(`문제가 있어요`)는 **운영팀**이 확인하고 처리 결과를 정함
@@ -761,3 +759,19 @@ Optional<Post> findByIdForUpdate(@Param("postId") Long postId);
 - `orders.receipt_amount`, `participations.adjustment_*` 삭제. 영수증 등록은 사진만
 - `PointClient.adjust()` 삭제. 차액 청구가 없으니 미수금도 생기지 않음 → 미수금(`point_debts`, `DEBT_REPAYMENT`, 계정 정지 등 D9 나머지)은 포인트 담당과 정리 필요 (코드는 아직 남겨 둠)
 
+### D22. '받았어요' 자동 처리 없음, 참여자가 누를 때까지 대기 (2026-11-16, D10 자동 처리 폐기)
+- **결정**: 나눔 예정 시각 + 3일이 지나도 자동으로 수령 처리하지 않음. 참여자가 직접 '받았어요'를 눌러야만 `RECEIVED`. 안 누르면 계속 `WAITING`
+- **변경**
+  - 자동 수령 스케줄러·`@EnableScheduling` 삭제
+  - `participations.auto_confirmed` 컬럼 삭제
+  - 주문 조회·나눔 일정 응답의 `autoConfirmAt`, 참여 현황 응답의 `autoConfirmed` 삭제
+  - 수령 문의(운영팀 처리)는 D10 그대로
+- **이유**: 실제로 물건을 받았는지는 참여자만 확인할 수 있음. 못 받은 사람이 버튼을 깜빡해도 자동으로 '받았음'이 되어 돈이 호스트에게 넘어가는 일을 막음 (참여자 보호 우선)
+- **위험 (남은 미정)**: 참여자 한 명이라도 끝까지 안 누르면 공구가 `DISTRIBUTED`에 머물고 **호스트는 정산을 영영 못 받음**
+  - 대응 후보: 알림·재촉 기능, 운영팀이 대신 수령 처리하는 관리자 기능, 호스트가 신고(`TRADE_VIOLATION`)로 운영팀에 요청
+  - 관리자 화면이 생기기 전까지는 운영팀이 DB에서 직접 처리해야 함
+
+### D23. 신고는 사람만, 게시글 관련 부분 삭제 (2026-11-16)
+- **결정**: 신고 대상은 항상 사용자. 게시글 신고 사유 `POST_HARMFUL` 삭제, `reports.post_id` 삭제, 신고 요청의 `postId` 삭제
+- **사유별 필수 값**: `CHAT_ABUSE` → 메시지 ID 1개 이상, `TRADE_VIOLATION` → 위반 단계, `ETC` → 내용
+- **이유**: 신고는 사람의 행동(욕설·거래 규칙 위반 등)을 다루는 기능으로 단순화. 어느 공구에서 일어났는지는 채팅 메시지·위반 단계·내용으로 운영팀이 확인
