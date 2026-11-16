@@ -1,0 +1,32 @@
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# 비밀값 (JWT 키, DB 비밀번호, 메일 계정, PG 시크릿 키 등)
+.env
+.env.*
+!.env.example
+**/application-local.yaml
+**/application-local.yml
+**/application-secret.yaml
+**/application-secret.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 로그·업로드
+*.log
+logs/
+uploads/
+
+# 내용 정리용
+SIKGU_SPEC.md
+# 빌드 결과물
+.gradle/
+build/
+bin/
+*.patch
