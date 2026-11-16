@@ -83,7 +83,7 @@ public enum ErrorStatus {
     // 신고
     CANNOT_REPORT_SELF(HttpStatus.BAD_REQUEST, "REPORT4001", "자기 자신은 신고할 수 없습니다."),
     REPORT_DETAIL_REQUIRED(HttpStatus.BAD_REQUEST, "REPORT4002",
-            "신고 사유에 필요한 값이 없습니다. (게시글 유해: 게시글, 채팅: 메시지, 거래 위반: 게시글·단계, 기타: 내용)"),
+            "신고 사유에 필요한 값이 없습니다. (채팅: 메시지, 거래 위반: 위반 단계, 기타: 내용)"),
 
     // 차단
     CANNOT_BLOCK_SELF(HttpStatus.BAD_REQUEST, "BLOCK4001", "자기 자신은 차단할 수 없습니다."),
