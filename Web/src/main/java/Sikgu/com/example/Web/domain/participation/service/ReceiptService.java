@@ -10,16 +10,13 @@ import Sikgu.com.example.Web.global.apiPayload.code.ErrorStatus;
 import Sikgu.com.example.Web.global.apiPayload.exception.GeneralException;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 수령 확인 ('받았어요')과 자동 수령 처리 (D10)
+ * 수령 확인 ('받았어요'). 자동 수령 처리는 없다 — 참여자가 직접 누르기 전까지 수령 대기로 남는다 (D22)
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReceiptService {
@@ -47,32 +44,9 @@ public class ReceiptService {
             throw new GeneralException(ErrorStatus.INQUIRY_IN_PROGRESS);
         }
 
-        participation.confirmReceipt(now, false);
+        participation.confirmReceipt(now);
         settlementService.settleIfAllReceived(post, now);
         return new ReceiptResult(participation.getReceiptStatus(), post.getStatus());
-    }
-
-    /**
-     * 자동 수령 처리 (공구 하나). 나눔 예정 + 3일이 지나도 '받았어요'를 안 누른 사람을 받은 것으로 본다.
-     * 문의중인 사람은 건드리지 않는다. 스케줄러가 공구마다 별도 트랜잭션으로 부른다.
-     *
-     * @return 자동 처리한 인원 수
-     */
-    @Transactional
-    public int autoConfirm(Long postId) {
-        LocalDateTime now = LocalDateTime.now(clock);
-        Post post = postRepository.findByIdForUpdate(postId).orElse(null);
-        if (post == null || post.getStatus() != PostStatus.DISTRIBUTED) {
-            return 0; // 그 사이 정산됐거나 상태가 바뀜
-        }
-
-        List<Participation> waiting = participationRepository.findActiveByPostId(postId).stream()
-                .filter(pa -> pa.getReceiptStatus() == ReceiptStatus.WAITING)
-                .toList();
-        waiting.forEach(pa -> pa.confirmReceipt(now, true));
-        boolean settled = settlementService.settleIfAllReceived(post, now);
-        log.info("자동 수령 처리 post={} 처리 인원={} 정산={}", postId, waiting.size(), settled);
-        return waiting.size();
     }
 
     public record ReceiptResult(ReceiptStatus receiptStatus, PostStatus postStatus) {

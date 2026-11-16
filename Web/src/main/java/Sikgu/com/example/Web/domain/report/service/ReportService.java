@@ -1,7 +1,5 @@
 package Sikgu.com.example.Web.domain.report.service;
 
-import Sikgu.com.example.Web.domain.post.entity.Post;
-import Sikgu.com.example.Web.domain.post.repository.PostRepository;
 import Sikgu.com.example.Web.domain.report.dto.request.ReportCreateRequest;
 import Sikgu.com.example.Web.domain.report.dto.response.ReportCreateResponse;
 import Sikgu.com.example.Web.domain.report.entity.Report;
@@ -19,7 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 /**
- * 사용자 신고 (docs/API.md 10장). 처리 전(PENDING)으로 저장만 한다. 처리는 운영팀 (관리자 화면은 나중에).
+ * 사용자 신고 (docs/API.md 10장). 신고 대상은 사람만 (게시글 관련 신고 없음).
+ * 처리 전(PENDING)으로 저장만 한다. 처리는 운영팀 (관리자 화면은 나중에).
  */
 @Service
 @RequiredArgsConstructor
@@ -28,7 +27,6 @@ public class ReportService {
 
     private final ReportRepository reportRepository;
     private final UserRepository userRepository;
-    private final PostRepository postRepository;
 
     @Transactional
     public ReportCreateResponse create(Long reporterId, ReportCreateRequest request) {
@@ -43,10 +41,8 @@ public class ReportService {
                 .orElseThrow(() -> new GeneralException(ErrorStatus.USER_NOT_FOUND));
         User target = userRepository.findById(request.targetUserId())
                 .orElseThrow(() -> new GeneralException(ErrorStatus.USER_NOT_FOUND));
-        Post post = request.postId() == null ? null : postRepository.findById(request.postId())
-                .orElseThrow(() -> new GeneralException(ErrorStatus.POST_NOT_FOUND));
 
-        Report report = reportRepository.save(Report.create(reporter, target, post, request.reason(), stage,
+        Report report = reportRepository.save(Report.create(reporter, target, request.reason(), stage,
                 request.content(), messageIds, request.imageUrls()));
         return new ReportCreateResponse(report.getId(), report.getStatus());
     }
@@ -55,9 +51,8 @@ public class ReportService {
     private static void validateByReason(ReportCreateRequest request, List<Long> messageIds, ViolationStage stage) {
         ReportReason reason = request.reason();
         boolean valid = switch (reason) {
-            case POST_HARMFUL -> request.postId() != null;
             case CHAT_ABUSE -> messageIds != null && !messageIds.isEmpty();
-            case TRADE_VIOLATION -> request.postId() != null && stage != null;
+            case TRADE_VIOLATION -> stage != null;
             case ETC -> StringUtils.hasText(request.content());
         };
         if (!valid) {

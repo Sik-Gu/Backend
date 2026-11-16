@@ -24,7 +24,6 @@ public final class OrderResponses {
             LocalDateTime registeredAt,
             LocalDateTime distributeAt,
             String distributePlace,
-            LocalDateTime autoConfirmAt,
             long heldPoint
     ) {
     }
@@ -34,8 +33,7 @@ public final class OrderResponses {
     }
 
     /** PATCH /api/posts/{postId}/order/distribution */
-    public record DistributionResponse(PostStatus postStatus, LocalDateTime distributedAt, String distributePlace,
-                                       LocalDateTime autoConfirmAt) {
+    public record DistributionResponse(PostStatus postStatus, LocalDateTime distributedAt, String distributePlace) {
     }
 
     private OrderResponses() {

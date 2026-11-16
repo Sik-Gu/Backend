@@ -6,11 +6,11 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
  * POST /api/posts. 검증 규칙(길이·범위)은 가정값 (docs/API.md 6장).
+ * 모집 마감은 받지 않는다: 등록 시각 + 7일로 고정 (D24).
  * 위치는 받지 않는다: 호스트의 집 위치(GPS)를 글에 저장한다. 나눔 장소는 모집 중에 참여자와 정한다.
  */
 public record PostCreateRequest(
@@ -50,9 +50,6 @@ public record PostCreateRequest(
 
         @NotNull(message = "호스트 구매 단위는 필수입니다.")
         @Min(value = 1, message = "호스트 구매 단위는 1 이상입니다.")
-        Integer hostUnits,
-
-        @NotNull(message = "모집 마감 일시는 필수입니다.")
-        LocalDateTime deadlineAt
+        Integer hostUnits
 ) {
 }

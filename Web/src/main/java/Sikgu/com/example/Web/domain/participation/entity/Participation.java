@@ -62,12 +62,8 @@ public class Participation {
     @Column(nullable = false, length = 20)
     private ReceiptStatus receiptStatus;
 
-    /** '받았어요'를 누른 시각 또는 자동 수령 처리 시각 (D10) */
+    /** '받았어요'를 누른 시각 */
     private LocalDateTime receivedAt;
-
-    /** 3일이 지나 자동으로 수령 처리됐는지 (D10) */
-    @Column(nullable = false)
-    private boolean autoConfirmed;
 
     @Column(nullable = false)
     private LocalDateTime joinedAt;
@@ -99,7 +95,6 @@ public class Participation {
         participation.units = units;
         participation.paymentStatus = PaymentStatus.PAID;
         participation.receiptStatus = ReceiptStatus.WAITING;
-        participation.autoConfirmed = false;
         participation.placeAgreed = role == ParticipationRole.HOST; // 호스트는 자기가 제안하므로 항상 동의
         participation.joinedAt = now;
         return participation;
@@ -129,7 +124,6 @@ public class Participation {
         this.paymentStatus = PaymentStatus.PAID;
         this.receiptStatus = ReceiptStatus.WAITING;
         this.receivedAt = null;
-        this.autoConfirmed = false;
         this.placeAgreed = false;
         this.leaveReason = null;
         this.leftAt = null;
@@ -159,15 +153,10 @@ public class Participation {
         this.placeAgreed = isHost();
     }
 
-    /**
-     * 수령 확인.
-     *
-     * @param auto 3일이 지나 스케줄러가 처리한 경우 true (D10)
-     */
-    public void confirmReceipt(LocalDateTime now, boolean auto) {
+    /** 수령 확인 ('받았어요'). 자동 처리는 없다 (D22) */
+    public void confirmReceipt(LocalDateTime now) {
         this.receiptStatus = ReceiptStatus.RECEIVED;
         this.receivedAt = now;
-        this.autoConfirmed = auto;
     }
 
     /** 수령 문제 문의 시작 */

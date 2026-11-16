@@ -1,7 +1,9 @@
 package Sikgu.com.example.Web.domain.post.repository;
 
 import Sikgu.com.example.Web.domain.post.entity.Post;
+import Sikgu.com.example.Web.domain.post.enums.PostStatus;
 import jakarta.persistence.LockModeType;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -30,6 +32,10 @@ public interface PostRepository extends JpaRepository<Post, Long>, PostSearchRep
     @EntityGraph(attributePaths = {"host", "images"})
     @Query("select distinct p from Post p where p.id in :ids")
     List<Post> findAllWithImagesByIdIn(@Param("ids") Collection<Long> ids);
+
+    /** 자동 취소 대상: 아직 모집중인데 마감(등록 + 7일)이 지난 공구 (D24) */
+    @Query("select p.id from Post p where p.status = :status and p.deadlineAt <= :now")
+    List<Long> findIdsToExpire(@Param("status") PostStatus status, @Param("now") LocalDateTime now);
 
     /** 조회수 +1. 동시에 여러 명이 봐도 빠지지 않게 DB에서 바로 더한다 */
     @Modifying

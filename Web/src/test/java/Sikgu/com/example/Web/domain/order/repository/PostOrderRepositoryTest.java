@@ -38,21 +38,6 @@ class PostOrderRepositoryTest {
         assertThat(orderRepository.existsByPostId(post.getId())).isTrue();
     }
 
-    @Test
-    void 자동_수령_대상은_나눔_진행중이고_나눔_예정이_기준_이전인_공구() {
-        Post due = savePost(PostStatus.DISTRIBUTED);
-        Post notYet = savePost(PostStatus.DISTRIBUTED);
-        Post settled = savePost(PostStatus.SETTLED);
-        saveOrder(due, NOW.minusDays(4));
-        saveOrder(notYet, NOW.minusDays(1));
-        saveOrder(settled, NOW.minusDays(10));
-        em.flush();
-
-        List<Long> ids = orderRepository.findPostIdsToAutoConfirm(PostStatus.DISTRIBUTED, NOW.minusDays(3));
-
-        assertThat(ids).containsExactly(due.getId());
-    }
-
     private Post savePost(PostStatus status) {
         User host = Fixtures.newUser("host" + System.nanoTime() % 100000);
         em.persist(host);
@@ -60,11 +45,5 @@ class PostOrderRepositoryTest {
         ReflectionTestUtils.setField(post, "status", status);
         em.persist(post);
         return post;
-    }
-
-    private void saveOrder(Post post, LocalDateTime distributeAt) {
-        PostOrder order = PostOrder.register(post, List.of("/r.jpg"), NOW.minusDays(5));
-        order.scheduleDistribution(distributeAt, "정문");
-        orderRepository.save(order);
     }
 }

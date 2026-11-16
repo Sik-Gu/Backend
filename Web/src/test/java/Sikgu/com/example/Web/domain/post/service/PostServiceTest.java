@@ -88,7 +88,7 @@ class PostServiceTest {
         given(pointClient.pay(10L, 3L, 21L, 9680L)).willReturn(new PaymentResult(9680L, 2320L));
         given(chatClient.createRoom(eq(3L), eq(10L), any())).willReturn(7L);
 
-        PostCreateResponse response = postService.create(10L, request(2, 29040, NOW.plusDays(2)));
+        PostCreateResponse response = postService.create(10L, request(2, 29040));
 
         assertThat(response).isEqualTo(new PostCreateResponse(3L, 7L, 4840, 9680L, 2320L));
         ArgumentCaptor<Participation> captor = ArgumentCaptor.forClass(Participation.class);
@@ -106,6 +106,8 @@ class PostServiceTest {
         assertThat(saved.getSearchWords()).contains(" 생수 ", " 커클랜드 ");
         assertThat(saved.getTitleChosung()).isEqualTo("ㅋㅅㅌㅋㅅㅅㄱㅇㅅㅇ");
         assertThat(saved.hasDistributionPlace()).isFalse();
+        // 모집 마감은 등록 시각 + 7일로 고정 (D24)
+        assertThat(saved.getDeadlineAt()).isEqualTo(NOW.plusDays(7));
     }
 
     @Test
@@ -113,26 +115,20 @@ class PostServiceTest {
         User noLocation = Fixtures.newUserWithoutLocation("new");
         given(userRepository.findById(10L)).willReturn(Optional.of(noLocation));
 
-        assertThatThrownBy(() -> postService.create(10L, request(2, 29040, NOW.plusDays(2))))
+        assertThatThrownBy(() -> postService.create(10L, request(2, 29040)))
                 .extracting("errorStatus").isEqualTo(ErrorStatus.LOCATION_REQUIRED);
         verify(postRepository, never()).save(any());
     }
 
     @Test
     void 호스트_구매_단위가_총_단위_이상이면_POST4001() {
-        assertThatThrownBy(() -> postService.create(10L, request(6, 29040, NOW.plusDays(2))))
+        assertThatThrownBy(() -> postService.create(10L, request(6, 29040)))
                 .extracting("errorStatus").isEqualTo(ErrorStatus.INVALID_HOST_UNITS);
     }
 
     @Test
-    void 마감이_지금이거나_과거면_POST4002() {
-        assertThatThrownBy(() -> postService.create(10L, request(2, 29040, NOW)))
-                .extracting("errorStatus").isEqualTo(ErrorStatus.DEADLINE_PASSED);
-    }
-
-    @Test
     void 총_가격이_나누어떨어지지_않으면_POST4003() {
-        assertThatThrownBy(() -> postService.create(10L, request(2, 29041, NOW.plusDays(2))))
+        assertThatThrownBy(() -> postService.create(10L, request(2, 29041)))
                 .extracting("errorStatus").isEqualTo(ErrorStatus.INDIVISIBLE_PRICE);
     }
 
@@ -140,7 +136,7 @@ class PostServiceTest {
     void 미수금이_있으면_등록하지_않는다() {
         willThrow(new GeneralException(ErrorStatus.UNPAID_DEBT)).given(pointClient).validateNoUnpaidDebt(10L);
 
-        assertThatThrownBy(() -> postService.create(10L, request(2, 29040, NOW.plusDays(2))))
+        assertThatThrownBy(() -> postService.create(10L, request(2, 29040)))
                 .extracting("errorStatus").isEqualTo(ErrorStatus.UNPAID_DEBT);
         verify(postRepository, never()).save(any());
     }
@@ -153,7 +149,7 @@ class PostServiceTest {
         given(pointClient.pay(any(), any(), any(), anyLong()))
                 .willThrow(new GeneralException(ErrorStatus.INSUFFICIENT_POINT));
 
-        assertThatThrownBy(() -> postService.create(10L, request(2, 29040, NOW.plusDays(2))))
+        assertThatThrownBy(() -> postService.create(10L, request(2, 29040)))
                 .extracting("errorStatus").isEqualTo(ErrorStatus.INSUFFICIENT_POINT);
         verify(chatClient, never()).createRoom(any(), any(), any());
     }
@@ -247,8 +243,8 @@ class PostServiceTest {
                 .extracting("errorStatus").isEqualTo(ErrorStatus.POST_NOT_FOUND);
     }
 
-    private static PostCreateRequest request(int hostUnits, int totalPrice, LocalDateTime deadlineAt) {
+    private static PostCreateRequest request(int hostUnits, int totalPrice) {
         return new PostCreateRequest("코스트코 생수 같이 사요", "커클랜드 생수", null, Category.FOOD, null,
-                List.of("/images/post/a.jpg"), "2L 생수 4병", 6, totalPrice, hostUnits, deadlineAt);
+                List.of("/images/post/a.jpg"), "2L 생수 4병", 6, totalPrice, hostUnits);
     }
 }

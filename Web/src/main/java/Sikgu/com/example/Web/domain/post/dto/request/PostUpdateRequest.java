@@ -4,7 +4,6 @@ import Sikgu.com.example.Web.domain.post.enums.Category;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -30,8 +29,6 @@ public record PostUpdateRequest(
 
         /** 보내면 이미지 목록 전체를 이 값으로 바꾼다 */
         @Size(max = 10, message = "이미지는 10개까지 넣을 수 있습니다.")
-        List<@NotBlank(message = "이미지 URL이 비었습니다.") @Size(max = 500) String> imageUrls,
-
-        LocalDateTime deadlineAt
+        List<@NotBlank(message = "이미지 URL이 비었습니다.") @Size(max = 500) String> imageUrls
 ) {
 }

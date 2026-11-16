@@ -1,6 +1,5 @@
 package Sikgu.com.example.Web.domain.report.entity;
 
-import Sikgu.com.example.Web.domain.post.entity.Post;
 import Sikgu.com.example.Web.domain.report.enums.ReportEnums.ReportReason;
 import Sikgu.com.example.Web.domain.report.enums.ReportEnums.ReportStatus;
 import Sikgu.com.example.Web.domain.report.enums.ReportEnums.ViolationStage;
@@ -28,7 +27,8 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 /**
- * 사용자 신고 (docs/DB.md 4.9 reports). 처리 전(PENDING)으로 저장만 하고 운영팀이 처리한다.
+ * 사용자 신고 (docs/DB.md 4.9 reports). 신고 대상은 사람만 (게시글 신고·게시글 연결 없음).
+ * 처리 전(PENDING)으로 저장만 하고 운영팀이 처리한다.
  */
 @Entity
 @Table(name = "reports")
@@ -48,11 +48,6 @@ public class Report {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "target_id", nullable = false)
     private User target;
-
-    /** 관련 게시글 */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "post_id")
-    private Post post;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -87,13 +82,12 @@ public class Report {
 
     private LocalDateTime processedAt;
 
-    public static Report create(User reporter, User target, Post post, ReportReason reason,
+    public static Report create(User reporter, User target, ReportReason reason,
                                 ViolationStage violationStage, String content, List<Long> messageIds,
                                 List<String> imageUrls) {
         Report report = new Report();
         report.reporter = reporter;
         report.target = target;
-        report.post = post;
         report.reason = reason;
         report.violationStage = violationStage;
         report.content = content;
