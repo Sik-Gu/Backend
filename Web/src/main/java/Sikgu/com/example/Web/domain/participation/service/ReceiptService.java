@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 수령 확인 ('받았어요'). 자동 수령 처리는 없다 — 참여자가 직접 누르기 전까지 수령 대기로 남는다 (D17)
+ * 수령 확인 ('받았어요'). 자동 수령 처리는 없다 — 참여자가 직접 누르기 전까지 수령 대기로 남는다 (D22)
  */
 @Service
 @RequiredArgsConstructor

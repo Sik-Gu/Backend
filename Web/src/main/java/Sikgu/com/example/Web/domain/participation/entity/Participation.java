@@ -153,7 +153,7 @@ public class Participation {
         this.placeAgreed = isHost();
     }
 
-    /** 수령 확인 ('받았어요'). 자동 처리는 없다 (D17) */
+    /** 수령 확인 ('받았어요'). 자동 처리는 없다 (D22) */
     public void confirmReceipt(LocalDateTime now) {
         this.receiptStatus = ReceiptStatus.RECEIVED;
         this.receivedAt = now;
