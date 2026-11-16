@@ -265,7 +265,7 @@ class ParticipationServiceTest {
     void 현황은_참여자에게만_보이고_받은_사람을_센다() {
         Participation hostPa = Participation.host(post, host, 2, NOW);
         Participation memberPa = Participation.participant(post, member, 1, NOW);
-        hostPa.confirmReceipt(NOW, false);
+        hostPa.confirmReceipt(NOW);
         given(postRepository.existsById(3L)).willReturn(true);
         given(participationRepository.findActiveByPostId(3L)).willReturn(List.of(hostPa, memberPa));
 

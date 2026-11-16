@@ -107,7 +107,7 @@ class InquiryServiceTest {
 
     @Test
     void 이미_받았으면_INQ4091_이미_문의중이면_INQ4092() {
-        mine.confirmReceipt(NOW, false);
+        mine.confirmReceipt(NOW);
         assertThatThrownBy(() -> service.create(20L, 3L, request(InquiryType.ETC, null, List.of())))
                 .extracting("errorStatus").isEqualTo(ErrorStatus.INQUIRY_AFTER_RECEIVED);
 

@@ -5,10 +5,8 @@ package Sikgu.com.example.Web.domain.report.enums;
  */
 public final class ReportEnums {
 
-    /** 신고 사유. 신고 대상은 항상 사용자 */
+    /** 신고 사유. 신고 대상은 항상 사람 (게시글 신고 없음) */
     public enum ReportReason {
-        /** 게시글을 통한 유해 행위 */
-        POST_HARMFUL,
         /** 채팅 욕설·비매너 */
         CHAT_ABUSE,
         /** 거래 규칙 위반 */

@@ -48,7 +48,7 @@ public class PostOrder {
     @Column(nullable = false)
     private LocalDateTime registeredAt;
 
-    /** 나눔 예정 일시. + 3일이 지나면 자동 수령 처리 (D10) */
+    /** 나눔 예정 일시 (표시용. 지나도 자동 수령 처리는 없음, D22) */
     private LocalDateTime distributeAt;
 
     /** 주문 전에 참여자 전원이 합의한 나눔 장소 (게시글에서 복사) */

@@ -7,13 +7,10 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
-/** POST /api/reports */
+/** POST /api/reports. 신고 대상은 사람만 (게시글은 받지 않음) */
 public record ReportCreateRequest(
         @NotNull(message = "신고 대상은 필수입니다.")
         Long targetUserId,
-
-        /** POST_HARMFUL·TRADE_VIOLATION이면 필수 */
-        Long postId,
 
         @NotNull(message = "신고 사유는 필수입니다.")
         ReportReason reason,

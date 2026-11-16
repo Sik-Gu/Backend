@@ -145,7 +145,6 @@
 |---|---|---|---|
 | 409 | `POST409` | 현재 공구 상태에서 할 수 없는 요청 | 원본 |
 | 400 | `POST4001` | `hostUnits`가 범위를 벗어남 (1 이상 `totalUnits - 1` 이하) | 보완 |
-| 400 | `POST4002` | `deadlineAt`이 과거 | 보완 |
 | 400 | `POST4003` | `totalPrice`가 `totalUnits`로 나누어떨어지지 않음 (가정) | 보완 |
 | 409 | `POST4091` | 수정 불가 (모집중이 아니거나 호스트 외 참여자가 있음) | 보완 |
 | 409 | `POST4092` | 취소 불가 (주문완료 이후) | 보완 |
@@ -189,7 +188,7 @@
 | 409 | `REVIEW4091` | 같은 대상에게 이미 후기를 씀 | 보완 |
 | 409 | `REVIEW4092` | **작성 기간이 아님** (정산완료 전이거나 정산 후 3일 지남) | 보완 [D12] |
 | 400 | `REPORT4001` | 본인을 신고함 | 보완 |
-| 400 | `REPORT4002` | 사유별 필수 값 누락 | 보완 |
+| 400 | `REPORT4002` | 사유별 필수 값 누락 (채팅: 메시지, 거래 위반: 위반 단계, 기타: 내용) | 보완 |
 | 400 | `BLOCK4001` | 본인을 차단함 | 보완 |
 | 409 | `BLOCK4091` | 이미 차단한 사용자 | 보완 |
 
@@ -222,7 +221,7 @@
 | `MessageType` | `TEXT`, `IMAGE`, `SYSTEM` | `IMAGE` 추가 [D13] |
 | `ImageType` | `POST`, `RECEIPT`, `INQUIRY`, `REPORT`, `CHAT` | 업로드 용도 (보완), `CHAT` [D13] |
 | `ReviewTag` | `PUNCTUAL` 시간 약속, `CLEAN_SPLIT` 소분 깔끔, `FAST_REPLY` 응답 빠름, `FAST_PAYMENT` 결제 빠름 | |
-| `ReportReason` | `POST_HARMFUL`, `CHAT_ABUSE`, `TRADE_VIOLATION`, `ETC` | 신고 대상은 항상 사용자 |
+| `ReportReason` | `CHAT_ABUSE`, `TRADE_VIOLATION`, `ETC` | 신고 대상은 항상 사용자 (게시글 신고 없음) [D23] |
 | `ReportStatus` | `PENDING` 처리 전, `DONE` 처리 완료 | |
 
 ---
@@ -821,7 +820,6 @@
 | `totalUnits` | int | Y | 총 단위 수, 2~100 |
 | `totalPrice` | int | Y | 총 가격 (호스트가 예상한 가격), 1~10,000,000. `totalUnits`로 나누어떨어져야 함 |
 | `hostUnits` | int | Y | 호스트 본인 구매 단위 (1 이상 `totalUnits - 1` 이하) |
-| `deadlineAt` | datetime | Y | 모집 마감 일시. 현재보다 미래 |
 
 ```json
 {
@@ -834,11 +832,11 @@
   "baseUnit": "2L 생수 4병",
   "totalUnits": 6,
   "totalPrice": 29040,
-  "hostUnits": 2,
-  "deadlineAt": "2026-10-29T23:59:00"
+  "hostUnits": 2
 }
 ```
 
+- **모집 마감(`deadlineAt`)은 받지 않습니다.** 서버가 등록 시각 + 7일(7×24시간)로 정합니다 [D24]. 그때까지 모집완료가 안 되면 자동 취소·전원 환급됩니다
 - 단위당 가격(`unitPrice = totalPrice / totalUnits`)은 서버가 계산합니다. 나누어떨어지지 않으면 `POST4003`으로 거부합니다 (가정: 나머지 처리 방식 미정)
 - `totalPrice`가 최종 가격입니다. 할인·배달비 등으로 실제 결제 금액이 달라져도 **차액 정산은 하지 않습니다** (D9 폐기 → D21)
 
@@ -858,7 +856,6 @@
 |---|---|---|
 | 400 | `COMMON400` | 필수 값 누락·형식 오류 |
 | 400 | `POST4001` | `hostUnits` 범위 오류 |
-| 400 | `POST4002` | `deadlineAt`이 과거 |
 | 400 | `POST4003` | `totalPrice`가 `totalUnits`로 나누어떨어지지 않음 |
 | 400 | `USER4001` | 집 위치가 설정되지 않음 |
 | 403 | `POINT4031` | 미납 미수금이 있어 등록 불가 [D9] |
@@ -869,7 +866,7 @@
 
 - 권한: 호스트 · 화면: 04
 - 선행조건: `RECRUITING`이고 호스트 외 참여자가 없음
-- 보낸 필드만 바뀝니다. 수정 가능: `title`, `productName`, `productLink`, `category`, `content`, `imageUrls`, `deadlineAt`. 제목·상품명이 바뀌면 검색 색인도 다시 만듭니다
+- 보낸 필드만 바뀝니다. 수정 가능: `title`, `productName`, `productLink`, `category`, `content`, `imageUrls`. 모집 마감은 수정할 수 없습니다 (등록 + 7일 고정, D24). 제목·상품명이 바뀌면 검색 색인도 다시 만듭니다
 - 글에 저장된 위치는 수정할 수 없습니다. 나눔 장소는 `PUT .../distribution-place`로 정합니다
 - `totalUnits`, `totalPrice`, `hostUnits`, `baseUnit`은 수정할 수 없습니다. 호스트가 이미 보류한 금액이 달라지기 때문입니다 [D8]. 바꾸려면 취소 후 다시 등록합니다. 보내도 **무시**합니다 (보완)
 - 검증 규칙은 등록과 같습니다
@@ -877,7 +874,7 @@
 
 **Request Body** — 등록과 같은 필드 중 수정 가능한 것만
 ```json
-{ "title": "코스트코 생수 2L x 24 같이 사요 (정문 나눔)", "deadlineAt": "2026-10-30T23:59:00" }
+{ "title": "코스트코 생수 2L x 24 같이 사요 (정문 나눔)" }
 ```
 
 **Response** (보완)
@@ -890,7 +887,6 @@
 | HTTP | code | 상황 |
 |---|---|---|
 | 400 | `COMMON400` | 형식 오류 |
-| 400 | `POST4002` | `deadlineAt`이 과거 |
 | 403 | `AUTH403` | 호스트가 아님 |
 | 404 | `COMMON404` | 게시글 없음 |
 | 409 | `POST4091` | 모집중이 아니거나 참여자가 있음 |
@@ -930,12 +926,12 @@
 | 3 | `ORDERED` | 영수증 사진 등록. **전원 장소 동의 필요** (D20) | 없음 (차액 정산 안 함, D21) | `POST .../order` |
 | 4 | `SHIPPING` | 배송 시작 | - | `PATCH .../order/shipping` |
 | 5 | `DISTRIBUTED` | **호스트가 나눔 일시 입력** (장소는 합의한 곳) [D6] | - | `PATCH .../order/distribution` |
-| 6 | `SETTLED` | 전원 `RECEIVED` (직접 또는 **나눔 예정 시각 + 3일 자동** [D10]) | CAPTURED → 호스트 정산 (**인센티브 없음** [D11]) | `POST .../receipt`, 스케줄러 |
-| 예외 | `CANCELLED` | 호스트 취소 | RELEASED → 호스트 포함 전원 환급 | `DELETE /api/posts/{postId}` |
+| 6 | `SETTLED` | 전원이 직접 '받았어요'를 눌러 `RECEIVED` (**자동 처리 없음** [D22]) | CAPTURED → 호스트 정산 (**인센티브 없음** [D11]) | `POST .../receipt` |
+| 예외 | `CANCELLED` | 호스트 취소, 또는 **모집 기간(등록 + 7일)이 지나도 `RECRUITING`** [D24] | RELEASED → 호스트 포함 전원 환급 | `DELETE /api/posts/{postId}`, 스케줄러 |
 
 - `RECRUITED`에서 참여 취소가 일어나면 `RECRUITING`으로 돌아가 빈자리를 다시 모집합니다.
 - 상태가 바뀔 때마다 채팅방에 SYSTEM 메시지를 보냅니다 (보완).
-- 모집 마감 시 인원 미달 자동 취소는 **보류** 상태입니다 (DB.md 8.1).
+- **모집 기간 만료 자동 취소** [D24]: 등록 + 7일이 지났는데 `RECRUITING`이면 스케줄러(1분마다)가 `CANCELLED`로 바꾸고 호스트 포함 전원 환급, 채팅방 종료. 취소된 글은 목록에 안 보입니다. `RECRUITED` 이후는 취소하지 않습니다
 
 ### POST /api/posts/{postId}/participations — 참여 + 즉시 결제
 
@@ -1078,7 +1074,6 @@
       "paidPoint": 9680,
       "paymentStatus": "PAID",
       "receiptStatus": "RECEIVED",
-      "autoConfirmed": false,
       "isMe": false
     }
   ]
@@ -1090,7 +1085,6 @@
 | `participants[]` | **호스트 포함** [D8] |
 | `paidPoint` | 처음 결제한 금액 (차액 조정 전) |
 | `receiptStatus` | 화면의 '수령확인' 단계는 `receivedCount / totalCount`로 표시 [D6] |
-| `autoConfirmed` | 3일이 지나 자동으로 수령 처리됐는지 [D10] |
 
 **Errors**: `AUTH403`
 
@@ -1144,7 +1138,6 @@
   "registeredAt": "2026-10-29T10:20:00",
   "distributeAt": "2026-10-30T19:00:00",
   "distributePlace": "○○대학교 정문 편의점 앞",
-  "autoConfirmAt": "2026-11-02T19:00:00",
   "heldPoint": 29040
 }
 ```
@@ -1153,7 +1146,6 @@
 |---|---|
 | `courier`, `trackingNumber` | 배송 시작 전, 또는 오프라인 구매면 `null` |
 | `distributeAt`, `distributePlace` | 나눔 일시 입력 전에는 `null`. 장소는 주문 전에 합의한 곳 |
-| `autoConfirmAt` | `distributeAt + 3일`. 이때까지 '받았어요'를 안 누르면 자동 수령 처리 [D10] |
 | `heldPoint` | 이 공구에서 아직 보류 중인 포인트 합계 |
 
 **Errors**: `AUTH403`, `COMMON404`
@@ -1196,13 +1188,13 @@
   2. 게시글 `DISTRIBUTED` (`distributedAt` = 입력 시각)
   3. 호스트 본인 참여는 `RECEIVED`로 처리, 참여자는 `WAITING`
 - **호스트의 별도 '나눔완료' 버튼은 없습니다.** 참여자는 받으면 각자 '받았어요'를 누릅니다.
-- `distributeAt + 3일`이 지나면 '받았어요'를 안 누른 `WAITING` 참여자를 스케줄러가 자동으로 `RECEIVED` 처리합니다. 문의중(`INQUIRING`)은 제외 [D10]
+- **자동 수령 처리는 없습니다.** 참여자가 '받았어요'를 누르기 전까지 `WAITING`으로 남고, 전원이 눌러야 정산됩니다 [D22]
 
 **Request Body**
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `distributeAt` | datetime | Y | 나눔 예정 일시. 자동 수령 처리 기준 [D10] |
+| `distributeAt` | datetime | Y | 나눔 예정 일시 |
 
 ```json
 { "distributeAt": "2026-10-30T19:00:00" }
@@ -1210,7 +1202,7 @@
 
 **Response**
 ```json
-{ "postStatus": "DISTRIBUTED", "distributedAt": "2026-10-29T18:00:00", "distributePlace": "○○대학교 정문 편의점 앞", "autoConfirmAt": "2026-11-02T19:00:00" }
+{ "postStatus": "DISTRIBUTED", "distributedAt": "2026-10-29T18:00:00", "distributePlace": "○○대학교 정문 편의점 앞" }
 ```
 
 **Errors**
@@ -1252,7 +1244,7 @@
 
 - 권한: 참여자 · 화면: 03-F
 - 선행조건: `DISTRIBUTED`, 내 수령 상태가 `WAITING`
-- 처리: 문의를 `OPEN`으로 저장하고 내 수령 상태를 `INQUIRING`으로 바꿉니다. **운영팀이 확인하고 처리합니다** [D10]. 문의중이면 자동 수령 처리 대상에서 빠집니다.
+- 처리: 문의를 `OPEN`으로 저장하고 내 수령 상태를 `INQUIRING`으로 바꿉니다. **운영팀이 확인하고 처리합니다** [D10]. 문의중인 사람이 있으면 정산되지 않습니다.
 
 **Request Body**
 
@@ -1752,24 +1744,22 @@
 ### POST /api/reports — 사용자 신고
 
 - 권한: 로그인 · 화면: 08-B, 03-D
-- 신고 대상은 항상 사용자입니다. 신고는 `PENDING`으로 저장하고, 처리는 운영팀이 합니다 (관리자 화면은 나중에 추가) [D10]
+- 신고 대상은 항상 사용자입니다. 게시글 신고는 없습니다 [D23]. 신고는 `PENDING`으로 저장하고, 처리는 운영팀이 합니다 (관리자 화면은 나중에 추가) [D10]
 
 **Request Body**
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `targetUserId` | long | Y | 신고 대상 (본인 불가) |
-| `postId` | long | N | 관련 게시글 |
 | `reason` | ReportReason | Y | 신고 사유 |
 | `detail.messageIds` | long[] | 조건 | `CHAT_ABUSE`면 1개 이상 |
 | `detail.violationStage` | string | 조건 | `TRADE_VIOLATION`이면 위반 단계 |
-| `content` | string | N | 내용 |
+| `content` | string | 조건 | 내용. `ETC`면 필수 |
 | `imageUrls` | string[] | N | 증빙 사진 |
 
 ```json
 {
   "targetUserId": 12,
-  "postId": 3,
   "reason": "TRADE_VIOLATION",
   "detail": { "messageIds": [], "violationStage": "RECEIPT" },
   "content": "영수증 금액과 실제 상품이 달라요",
@@ -1788,7 +1778,7 @@
 |---|---|---|
 | 400 | `COMMON400` | 필수 값 누락 |
 | 400 | `REPORT4001` | 본인 신고 |
-| 400 | `REPORT4002` | 사유별 필수 값 누락 |
+| 400 | `REPORT4002` | 사유별 필수 값 누락 (채팅: 메시지, 거래 위반: 위반 단계, 기타: 내용) |
 | 404 | `COMMON404` | 대상 사용자 없음 |
 
 ### POST /api/users/{userId}/block — 차단
@@ -1843,7 +1833,7 @@
 |---|---|---|---|---|
 | 1 | `PostStatus` `DISTRIBUTED` | 나눔완료·수령확인 | 나눔 진행·수령확인 대기 | D6 |
 | 2 | `PATCH .../order/distribution` | "나눔 일정·장소 + 나눔 완료" | **나눔 일정·장소 입력**. 호스트 나눔완료 버튼 없음, 입력하면 바로 `DISTRIBUTED` | D6 |
-| 3 | 자동 수령 처리 | 기한 없음 | 나눔 예정 시각(`distributeAt`) + 3일, 문의중 제외. 응답에 `autoConfirmAt` 추가 | D10 |
+| 3 | 자동 수령 처리 | 기한 없음 | ~~나눔 예정 시각 + 3일 자동 처리~~ → **자동 처리 없음** (원본과 같음) | D10 → D22 |
 | 4 | `PointTxType` | `INCENTIVE` 있음 | `INCENTIVE` 삭제 | D11 |
 | 5 | 상태 전이표 7단계 | "CAPTURED → 호스트 정산 + 인센티브" | 인센티브 제거 | D11 |
 | 6 | 포인트 서비스 시그니처 | `pay`, `refund`, `settle`, `giveIncentive` | `giveIncentive` 삭제, 차액 조정(`adjust`)·미수금 납부(`repayDebt`) 추가 | D9, D11 |
@@ -1874,7 +1864,7 @@ API에 영향을 주는 것만 모았습니다. 전체 목록은 [DB.md 8.1](DB.
 
 > 구현하면서 생긴 결정 필요 사항(모집 마감 자동 취소, 문의 처리, 관리자 API, 포인트·채팅 연동 등)은 [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md)에 정리했습니다.
 
-- [ ] 모집 마감 시 인원 미달 자동 취소 (보류) — 정해지면 스케줄러 동작과 `CANCELLED` 사유 추가
+- [x] 모집 마감 시 인원 미달 자동 취소 — 등록 + 7일, 자동 취소·전원 환급 (D24)
 - [ ] 문의중 참여자가 있을 때 나머지 몫을 먼저 정산할지, 전체 정산을 미룰지 (현재 명세: 전원 `RECEIVED`여야 정산)
 - [ ] 운영팀 수령 문의 처리 기한, 운영팀 처리 API (관리자 화면은 나중에 추가)
 - [ ] 계정 정지 기간 (기간 vs 영구)

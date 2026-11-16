@@ -28,7 +28,7 @@ public final class ParticipationResponses {
     }
 
     public record ParticipantStatus(Long userId, String nickname, ParticipationRole role, int units, long paidPoint,
-                                    PaymentStatus paymentStatus, ReceiptStatus receiptStatus, boolean autoConfirmed,
+                                    PaymentStatus paymentStatus, ReceiptStatus receiptStatus,
                                     boolean isMe) {
     }
 

@@ -74,13 +74,12 @@ class PostServiceUpdateCancelTest {
         given(postRepository.findByIdForUpdate(3L)).willReturn(Optional.of(post));
 
         postService.update(10L, 3L, new PostUpdateRequest("새 제목", null, null, Category.DAILY, null,
-                List.of("/images/new.jpg"), NOW.plusDays(5)));
+                List.of("/images/new.jpg")));
 
         assertThat(post.getTitle()).isEqualTo("새 제목");
         assertThat(post.getProductName()).isEqualTo("커클랜드 생수 2L x 24"); // 안 보낸 값은 그대로
         assertThat(post.getCategory()).isEqualTo(Category.DAILY);
         assertThat(post.imageUrls()).containsExactly("/images/new.jpg");
-        assertThat(post.getDeadlineAt()).isEqualTo(NOW.plusDays(5));
         assertThat(post.getSearchWords()).contains(" 새 ", " 제목 ");
         assertThat(post.getTitleChosung()).isEqualTo("ㅅㅈㅁ");
         assertThat(post.getUnitPrice()).isEqualTo(4840); // 가격은 바뀌지 않는다
@@ -101,15 +100,6 @@ class PostServiceUpdateCancelTest {
 
         assertThatThrownBy(() -> postService.update(10L, 3L, emptyUpdate()))
                 .extracting("errorStatus").isEqualTo(ErrorStatus.POST_NOT_EDITABLE);
-    }
-
-    @Test
-    void 마감을_과거로_바꾸면_POST4002() {
-        given(postRepository.findByIdForUpdate(3L)).willReturn(Optional.of(post));
-
-        assertThatThrownBy(() -> postService.update(10L, 3L,
-                new PostUpdateRequest(null, null, null, null, null, null, NOW.minusMinutes(1))))
-                .extracting("errorStatus").isEqualTo(ErrorStatus.DEADLINE_PASSED);
     }
 
     // ---------- 취소 ----------
@@ -161,7 +151,53 @@ class PostServiceUpdateCancelTest {
                 .extracting("errorStatus").isEqualTo(ErrorStatus.POST_NOT_FOUND);
     }
 
+    // ---------- 모집 기간 만료 자동 취소 (D24) ----------
+
+    @Test
+    void 모집_기간이_지난_모집중_공구는_취소하고_전원_환급한다() {
+        Post expired = Fixtures.post(4L, host, NOW.minusMinutes(1));
+        expired.addParticipant(2);
+        expired.addParticipant(1);
+        Participation hostPa = Participation.host(expired, host, 2, NOW);
+        Participation memberPa = Participation.participant(expired, member, 1, NOW);
+        given(postRepository.findByIdForUpdate(4L)).willReturn(Optional.of(expired));
+        given(participationRepository.findActiveByPostId(4L)).willReturn(List.of(hostPa, memberPa));
+
+        assertThat(postService.expire(4L)).isTrue();
+
+        assertThat(expired.getStatus()).isEqualTo(PostStatus.CANCELLED);
+        assertThat(expired.getCancelledAt()).isEqualTo(NOW);
+        assertThat(hostPa.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(memberPa.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        verify(pointClient).refund(10L, 4L, hostPa.getId());
+        verify(pointClient).refund(20L, 4L, memberPa.getId());
+        verify(chatClient).close(4L);
+    }
+
+    @Test
+    void 모집완료된_공구는_기간이_지나도_취소하지_않는다() {
+        Post recruited = Fixtures.post(5L, host, NOW.minusMinutes(1));
+        recruited.addParticipant(6);
+        recruited.markRecruited(NOW.minusDays(1));
+        given(postRepository.findByIdForUpdate(5L)).willReturn(Optional.of(recruited));
+
+        assertThat(postService.expire(5L)).isFalse();
+
+        assertThat(recruited.getStatus()).isEqualTo(PostStatus.RECRUITED);
+        verify(pointClient, never()).refund(any(), any(), any());
+    }
+
+    @Test
+    void 마감이_아직이면_취소하지_않는다() {
+        given(postRepository.findByIdForUpdate(3L)).willReturn(Optional.of(post));
+
+        assertThat(postService.expire(3L)).isFalse();
+
+        assertThat(post.getStatus()).isEqualTo(PostStatus.RECRUITING);
+        verify(pointClient, never()).refund(any(), any(), any());
+    }
+
     private static PostUpdateRequest emptyUpdate() {
-        return new PostUpdateRequest(null, null, null, null, null, null, null);
+        return new PostUpdateRequest(null, null, null, null, null, null);
     }
 }

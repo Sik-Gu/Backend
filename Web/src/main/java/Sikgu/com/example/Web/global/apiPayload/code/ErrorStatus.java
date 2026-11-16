@@ -45,7 +45,6 @@ public enum ErrorStatus {
     NOT_POST_HOST(HttpStatus.FORBIDDEN, "AUTH403", "공구를 연 사람만 할 수 있습니다."),
     INVALID_POST_STATUS(HttpStatus.CONFLICT, "POST409", "지금 공구 상태에서는 할 수 없는 요청입니다."),
     INVALID_HOST_UNITS(HttpStatus.BAD_REQUEST, "POST4001", "호스트 구매 단위는 1 이상, 총 단위보다 작아야 합니다."),
-    DEADLINE_PASSED(HttpStatus.BAD_REQUEST, "POST4002", "모집 마감 일시는 현재보다 뒤여야 합니다."),
     INDIVISIBLE_PRICE(HttpStatus.BAD_REQUEST, "POST4003", "총 가격이 총 단위 수로 나누어떨어져야 합니다."),
     POST_NOT_EDITABLE(HttpStatus.CONFLICT, "POST4091", "모집중이고 다른 참여자가 없을 때만 수정할 수 있습니다."),
     POST_NOT_CANCELLABLE(HttpStatus.CONFLICT, "POST4092", "주문완료 이후에는 공구를 취소할 수 없습니다."),
@@ -83,7 +82,7 @@ public enum ErrorStatus {
     // 신고
     CANNOT_REPORT_SELF(HttpStatus.BAD_REQUEST, "REPORT4001", "자기 자신은 신고할 수 없습니다."),
     REPORT_DETAIL_REQUIRED(HttpStatus.BAD_REQUEST, "REPORT4002",
-            "신고 사유에 필요한 값이 없습니다. (게시글 유해: 게시글, 채팅: 메시지, 거래 위반: 게시글·단계, 기타: 내용)"),
+            "신고 사유에 필요한 값이 없습니다. (채팅: 메시지, 거래 위반: 위반 단계, 기타: 내용)"),
 
     // 차단
     CANNOT_BLOCK_SELF(HttpStatus.BAD_REQUEST, "BLOCK4001", "자기 자신은 차단할 수 없습니다."),

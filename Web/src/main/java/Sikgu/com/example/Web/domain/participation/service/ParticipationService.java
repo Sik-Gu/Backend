@@ -135,7 +135,7 @@ public class ParticipationService {
         List<ParticipantStatus> statuses = participations.stream()
                 .map(pa -> new ParticipantStatus(pa.getUser().getId(), pa.getUser().getNickname(), pa.getRole(),
                         pa.getUnits(), pa.paidPoint(), pa.getPaymentStatus(), pa.getReceiptStatus(),
-                        pa.isAutoConfirmed(), pa.getUser().getId().equals(userId)))
+                        pa.getUser().getId().equals(userId)))
                 .toList();
         int receivedCount = (int) participations.stream()
                 .filter(pa -> pa.getReceiptStatus() == ReceiptStatus.RECEIVED).count();
