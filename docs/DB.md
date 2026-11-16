@@ -108,7 +108,7 @@ Spring Security `BCryptPasswordEncoder` 사용 (D7)
 | participant_count | INT | NOT NULL, DEFAULT 0 | 현재 참여 인원 수 (목록·상세 표시용, 호스트 포함) |
 | total_price | INT | | [반영] |
 | unit_price | INT | | [원본] 서버에서 계산 (total_price / total_units) |
-| deadline_at | TIMESTAMP | | [반영] 모집 마감 일시 |
+| deadline_at | TIMESTAMP | NOT NULL | [반영] 모집 마감 일시 = 등록 시각 + 7일 고정 (D24) |
 | host_latitude / host_longitude | DOUBLE PRECISION | NOT NULL | **글 올릴 때의 호스트 집 GPS 좌표** (D17). 거리 필터(500m·1km) 기준. 응답에 절대 넣지 않음 |
 | dong_name | VARCHAR | NOT NULL | 글 올릴 때의 호스트 동 이름 (표시용) |
 | distribution_place_name | VARCHAR(100) | NULL | 호스트가 제안한 나눔 장소 (D20). 제안 전 NULL |
@@ -461,9 +461,7 @@ Optional<Post> findByIdForUpdate(@Param("postId") Long postId);
 ### 8.1 아직 정해지지 않은 것
 
 **공구 진행**
-- [ ] 모집 마감 기한과 자동 취소 — **보류** (2026-11-11 논의)
-  - 정할 것: 마감 기한을 누가 정하나(호스트 + 최대 기한 제한?), 마감 때 다 안 차면 자동 취소 vs 호스트가 남은 단위 부담 후 진행, 취소 시점(`deadline_at` 즉시 vs 유예)
-  - 구현 메모: 스케줄러로 `status = RECRUITING AND deadline_at <= now()` 조회 → 게시글 락 → `CANCELLED` + 전원 환급. 참여 API에서도 `deadline_at > now()` 확인. `(status, deadline_at)` 인덱스
+- [x] 모집 마감 기한과 자동 취소 — **D24로 결정** (2026-11-16): 등록 + 7일, 다 안 차면 즉시 자동 취소·전원 환급
 - [ ] 문의중 참여자가 있을 때 나머지 참여자 몫을 먼저 정산할지, 문의가 끝날 때까지 전체 정산을 미룰지 (D10)
 - [ ] 운영팀 수령 문의 처리 기한 (D10)
 
@@ -502,6 +500,7 @@ Optional<Post> findByIdForUpdate(@Param("postId") Long postId);
 | 후기 작성 기한 / 수정 | 정산완료 후 3일까지, 수정 불가 | D12 |
 | 채팅 이미지 전송 | 지원 | D13 |
 | 신고 대상 | 사람만 (게시글 신고·`post_id` 없음) | D23 |
+| 모집 기간 / 미달 시 | 등록 + 7일 고정. 그때까지 모집완료 안 되면 자동 취소·전원 환급 | D24 |
 | 비밀번호 저장 | BCrypt (`password_salt` 컬럼 없음) | D7 |
 | 주소 저장 방식 | 동 이름 검색 + GPS 현재 위치 **둘 다 지원**. 동 이름 + 위경도 저장 | D14 |
 | 위치 변환 주체 | 프론트(카카오맵 SDK). 백엔드 위치 API 없음 | D15 |
@@ -775,3 +774,16 @@ Optional<Post> findByIdForUpdate(@Param("postId") Long postId);
 - **결정**: 신고 대상은 항상 사용자. 게시글 신고 사유 `POST_HARMFUL` 삭제, `reports.post_id` 삭제, 신고 요청의 `postId` 삭제
 - **사유별 필수 값**: `CHAT_ABUSE` → 메시지 ID 1개 이상, `TRADE_VIOLATION` → 위반 단계, `ETC` → 내용
 - **이유**: 신고는 사람의 행동(욕설·거래 규칙 위반 등)을 다루는 기능으로 단순화. 어느 공구에서 일어났는지는 채팅 메시지·위반 단계·내용으로 운영팀이 확인
+
+### D24. 모집 기간은 등록 + 7일 고정, 기간 안에 모집 안 되면 자동 취소·환급 (2026-11-16, 8.1 보류 항목 결정)
+- **결정**
+  - 모집 마감(`posts.deadline_at`) = 게시글 등록 시각 + 7일(7×24시간). 호스트가 정하거나 수정할 수 없음 (등록·수정 요청에서 `deadlineAt` 삭제, 에러 `POST4002` 삭제)
+  - 마감까지 모집완료(`RECRUITED`)가 안 되고 `RECRUITING`이면 → 게시글 `CANCELLED`(삭제 처리) + 호스트 포함 참여자 전원 포인트 환급 + 채팅방 종료
+  - 모집완료된 공구는 마감이 지나도 취소하지 않음
+- **구현**
+  - 스케줄러 `RecruitExpiryScheduler`가 1분마다 `status = RECRUITING AND deadline_at <= now()`인 공구를 찾음 → 공구마다 별도 트랜잭션으로 게시글 락 → 상태 다시 확인 → 취소·환급 (호스트 취소와 같은 환급 로직)
+  - 그 사이 마지막 참여로 모집완료가 되면 락 후 상태 확인에서 걸러져 취소하지 않음
+  - **"삭제"는 행을 지우지 않고 `CANCELLED`로 바꾸는 방식**: 참여·포인트 거래·채팅방이 게시글을 참조하고 있어 실제로 지우면 환급 기록이 사라짐. `CANCELLED` 글은 목록·검색에서 빠짐
+- **이유**: 마감을 호스트 자율로 두면 오래 방치된 글이 쌓이고 포인트가 계속 묶임. 7일로 고정해 단순하게 하고, 안 모이면 자동으로 돈을 돌려줌
+- **주의**: 마감이 지난 뒤 모집완료 공구에서 누가 나가면 `RECRUITING`으로 돌아가므로 **다음 스케줄러 실행 때 자동 취소됨** (마감이 지나 새 참여도 못 받기 때문). 이 동작을 바꾸려면 OPEN_QUESTIONS G1 결정 필요
+

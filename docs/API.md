@@ -145,7 +145,6 @@
 |---|---|---|---|
 | 409 | `POST409` | 현재 공구 상태에서 할 수 없는 요청 | 원본 |
 | 400 | `POST4001` | `hostUnits`가 범위를 벗어남 (1 이상 `totalUnits - 1` 이하) | 보완 |
-| 400 | `POST4002` | `deadlineAt`이 과거 | 보완 |
 | 400 | `POST4003` | `totalPrice`가 `totalUnits`로 나누어떨어지지 않음 (가정) | 보완 |
 | 409 | `POST4091` | 수정 불가 (모집중이 아니거나 호스트 외 참여자가 있음) | 보완 |
 | 409 | `POST4092` | 취소 불가 (주문완료 이후) | 보완 |
@@ -821,7 +820,6 @@
 | `totalUnits` | int | Y | 총 단위 수, 2~100 |
 | `totalPrice` | int | Y | 총 가격 (호스트가 예상한 가격), 1~10,000,000. `totalUnits`로 나누어떨어져야 함 |
 | `hostUnits` | int | Y | 호스트 본인 구매 단위 (1 이상 `totalUnits - 1` 이하) |
-| `deadlineAt` | datetime | Y | 모집 마감 일시. 현재보다 미래 |
 
 ```json
 {
@@ -834,11 +832,11 @@
   "baseUnit": "2L 생수 4병",
   "totalUnits": 6,
   "totalPrice": 29040,
-  "hostUnits": 2,
-  "deadlineAt": "2026-10-29T23:59:00"
+  "hostUnits": 2
 }
 ```
 
+- **모집 마감(`deadlineAt`)은 받지 않습니다.** 서버가 등록 시각 + 7일(7×24시간)로 정합니다 [D24]. 그때까지 모집완료가 안 되면 자동 취소·전원 환급됩니다
 - 단위당 가격(`unitPrice = totalPrice / totalUnits`)은 서버가 계산합니다. 나누어떨어지지 않으면 `POST4003`으로 거부합니다 (가정: 나머지 처리 방식 미정)
 - `totalPrice`가 최종 가격입니다. 할인·배달비 등으로 실제 결제 금액이 달라져도 **차액 정산은 하지 않습니다** (D9 폐기 → D21)
 
@@ -858,7 +856,6 @@
 |---|---|---|
 | 400 | `COMMON400` | 필수 값 누락·형식 오류 |
 | 400 | `POST4001` | `hostUnits` 범위 오류 |
-| 400 | `POST4002` | `deadlineAt`이 과거 |
 | 400 | `POST4003` | `totalPrice`가 `totalUnits`로 나누어떨어지지 않음 |
 | 400 | `USER4001` | 집 위치가 설정되지 않음 |
 | 403 | `POINT4031` | 미납 미수금이 있어 등록 불가 [D9] |
@@ -869,7 +866,7 @@
 
 - 권한: 호스트 · 화면: 04
 - 선행조건: `RECRUITING`이고 호스트 외 참여자가 없음
-- 보낸 필드만 바뀝니다. 수정 가능: `title`, `productName`, `productLink`, `category`, `content`, `imageUrls`, `deadlineAt`. 제목·상품명이 바뀌면 검색 색인도 다시 만듭니다
+- 보낸 필드만 바뀝니다. 수정 가능: `title`, `productName`, `productLink`, `category`, `content`, `imageUrls`. 모집 마감은 수정할 수 없습니다 (등록 + 7일 고정, D24). 제목·상품명이 바뀌면 검색 색인도 다시 만듭니다
 - 글에 저장된 위치는 수정할 수 없습니다. 나눔 장소는 `PUT .../distribution-place`로 정합니다
 - `totalUnits`, `totalPrice`, `hostUnits`, `baseUnit`은 수정할 수 없습니다. 호스트가 이미 보류한 금액이 달라지기 때문입니다 [D8]. 바꾸려면 취소 후 다시 등록합니다. 보내도 **무시**합니다 (보완)
 - 검증 규칙은 등록과 같습니다
@@ -877,7 +874,7 @@
 
 **Request Body** — 등록과 같은 필드 중 수정 가능한 것만
 ```json
-{ "title": "코스트코 생수 2L x 24 같이 사요 (정문 나눔)", "deadlineAt": "2026-10-30T23:59:00" }
+{ "title": "코스트코 생수 2L x 24 같이 사요 (정문 나눔)" }
 ```
 
 **Response** (보완)
@@ -890,7 +887,6 @@
 | HTTP | code | 상황 |
 |---|---|---|
 | 400 | `COMMON400` | 형식 오류 |
-| 400 | `POST4002` | `deadlineAt`이 과거 |
 | 403 | `AUTH403` | 호스트가 아님 |
 | 404 | `COMMON404` | 게시글 없음 |
 | 409 | `POST4091` | 모집중이 아니거나 참여자가 있음 |
@@ -931,11 +927,11 @@
 | 4 | `SHIPPING` | 배송 시작 | - | `PATCH .../order/shipping` |
 | 5 | `DISTRIBUTED` | **호스트가 나눔 일시 입력** (장소는 합의한 곳) [D6] | - | `PATCH .../order/distribution` |
 | 6 | `SETTLED` | 전원이 직접 '받았어요'를 눌러 `RECEIVED` (**자동 처리 없음** [D22]) | CAPTURED → 호스트 정산 (**인센티브 없음** [D11]) | `POST .../receipt` |
-| 예외 | `CANCELLED` | 호스트 취소 | RELEASED → 호스트 포함 전원 환급 | `DELETE /api/posts/{postId}` |
+| 예외 | `CANCELLED` | 호스트 취소, 또는 **모집 기간(등록 + 7일)이 지나도 `RECRUITING`** [D24] | RELEASED → 호스트 포함 전원 환급 | `DELETE /api/posts/{postId}`, 스케줄러 |
 
 - `RECRUITED`에서 참여 취소가 일어나면 `RECRUITING`으로 돌아가 빈자리를 다시 모집합니다.
 - 상태가 바뀔 때마다 채팅방에 SYSTEM 메시지를 보냅니다 (보완).
-- 모집 마감 시 인원 미달 자동 취소는 **보류** 상태입니다 (DB.md 8.1).
+- **모집 기간 만료 자동 취소** [D24]: 등록 + 7일이 지났는데 `RECRUITING`이면 스케줄러(1분마다)가 `CANCELLED`로 바꾸고 호스트 포함 전원 환급, 채팅방 종료. 취소된 글은 목록에 안 보입니다. `RECRUITED` 이후는 취소하지 않습니다
 
 ### POST /api/posts/{postId}/participations — 참여 + 즉시 결제
 
@@ -1868,7 +1864,7 @@ API에 영향을 주는 것만 모았습니다. 전체 목록은 [DB.md 8.1](DB.
 
 > 구현하면서 생긴 결정 필요 사항(모집 마감 자동 취소, 문의 처리, 관리자 API, 포인트·채팅 연동 등)은 [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md)에 정리했습니다.
 
-- [ ] 모집 마감 시 인원 미달 자동 취소 (보류) — 정해지면 스케줄러 동작과 `CANCELLED` 사유 추가
+- [x] 모집 마감 시 인원 미달 자동 취소 — 등록 + 7일, 자동 취소·전원 환급 (D24)
 - [ ] 문의중 참여자가 있을 때 나머지 몫을 먼저 정산할지, 전체 정산을 미룰지 (현재 명세: 전원 `RECEIVED`여야 정산)
 - [ ] 운영팀 수령 문의 처리 기한, 운영팀 처리 API (관리자 화면은 나중에 추가)
 - [ ] 계정 정지 기간 (기간 vs 영구)
