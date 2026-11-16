@@ -1,5 +1,6 @@
 package Sikgu.com.example.Web.domain.participation.dto.response;
 
+import Sikgu.com.example.Web.domain.participation.enums.LeaveReason;
 import Sikgu.com.example.Web.domain.participation.enums.ParticipationRole;
 import Sikgu.com.example.Web.domain.participation.enums.PaymentStatus;
 import Sikgu.com.example.Web.domain.participation.enums.ReceiptStatus;
@@ -17,7 +18,8 @@ public final class ParticipationResponses {
     }
 
     /** DELETE /api/posts/{postId}/participations/me */
-    public record LeaveResponse(long refundedPoint, long balanceAfter, PostStatus postStatus) {
+    public record LeaveResponse(long refundedPoint, long balanceAfter, PostStatus postStatus,
+                                LeaveReason leaveReason) {
     }
 
     /** GET /api/posts/{postId}/participations */

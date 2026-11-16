@@ -43,7 +43,7 @@ class PostRepositoryTest {
 
         assertThat(found.imageUrls()).containsExactly("/images/a.jpg", "/images/b.jpg");
         assertThat(found.thumbnailUrl()).isEqualTo("/images/a.jpg");
-        assertThat(found.getHost().getLoginId()).isEqualTo("host");
+        assertThat(found.getHost().getSchoolEmail()).isEqualTo("host@korea.ac.kr");
         assertThat(found.getUnitPrice()).isEqualTo(4840);
     }
 
@@ -84,7 +84,7 @@ class PostRepositoryTest {
 
         assertThat(active).extracting(Participation::getRole)
                 .containsExactly(ParticipationRole.HOST, ParticipationRole.PARTICIPANT);
-        assertThat(active).extracting(pa -> pa.getUser().getLoginId()).containsExactly("host", "aaaa");
+        assertThat(active).extracting(pa -> pa.getUser().getSchoolEmail()).containsExactly("host@korea.ac.kr", "aaaa@korea.ac.kr");
     }
 
     @Test

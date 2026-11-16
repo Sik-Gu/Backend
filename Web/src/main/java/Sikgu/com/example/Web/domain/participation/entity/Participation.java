@@ -1,5 +1,6 @@
 package Sikgu.com.example.Web.domain.participation.entity;
 
+import Sikgu.com.example.Web.domain.participation.enums.LeaveReason;
 import Sikgu.com.example.Web.domain.participation.enums.ParticipationRole;
 import Sikgu.com.example.Web.domain.participation.enums.PaymentStatus;
 import Sikgu.com.example.Web.domain.participation.enums.ReceiptStatus;
@@ -71,11 +72,16 @@ public class Participation {
     @Column(nullable = false)
     private LocalDateTime joinedAt;
 
-    /** 영수증 차액 정산 금액. 양수 = 추가 청구, 음수 = 환급, null = 차액 없음 (D9) */
-    private Long adjustmentAmount;
+    /** 호스트가 제안한 나눔 장소에 동의했는지. 장소가 바뀌면 다시 false */
+    @Column(nullable = false)
+    private boolean placeAgreed;
 
-    /** 추가 청구 중 잔액이 부족해 미수금이 된 금액 (D9) */
-    private Long adjustmentDebtAmount;
+    /** 참여를 그만둔 이유 (참여 중이면 null) */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private LeaveReason leaveReason;
+
+    private LocalDateTime leftAt;
 
     public static Participation host(Post post, User user, int units, LocalDateTime now) {
         return create(post, user, ParticipationRole.HOST, units, now);
@@ -94,6 +100,7 @@ public class Participation {
         participation.paymentStatus = PaymentStatus.PAID;
         participation.receiptStatus = ReceiptStatus.WAITING;
         participation.autoConfirmed = false;
+        participation.placeAgreed = role == ParticipationRole.HOST; // 호스트는 자기가 제안하므로 항상 동의
         participation.joinedAt = now;
         return participation;
     }
@@ -123,12 +130,33 @@ public class Participation {
         this.receiptStatus = ReceiptStatus.WAITING;
         this.receivedAt = null;
         this.autoConfirmed = false;
+        this.placeAgreed = false;
+        this.leaveReason = null;
+        this.leftAt = null;
         this.joinedAt = now;
     }
 
-    /** 환급 처리 (참여 취소, 공구 취소) */
+    /** 환급 처리 (공구 취소) */
     public void markRefunded() {
         this.paymentStatus = PaymentStatus.REFUNDED;
+    }
+
+    /** 참여자가 스스로 나감 (환급 포함). 나눔 장소 의견이 맞지 않아 나가는 경우도 여기로 */
+    public void leave(LeaveReason reason, LocalDateTime now) {
+        this.paymentStatus = PaymentStatus.REFUNDED;
+        this.placeAgreed = false;
+        this.leaveReason = reason;
+        this.leftAt = now;
+    }
+
+    /** 제안된 나눔 장소에 동의 */
+    public void agreePlace() {
+        this.placeAgreed = true;
+    }
+
+    /** 나눔 장소가 바뀌어 동의를 다시 받아야 함. 호스트는 제안한 사람이라 동의 유지 */
+    public void resetPlaceAgreement() {
+        this.placeAgreed = isHost();
     }
 
     /**
@@ -140,12 +168,6 @@ public class Participation {
         this.receiptStatus = ReceiptStatus.RECEIVED;
         this.receivedAt = now;
         this.autoConfirmed = auto;
-    }
-
-    /** 영수증 차액 정산 결과를 남긴다 (D9) */
-    public void applyAdjustment(long amount, long debtAmount) {
-        this.adjustmentAmount = amount;
-        this.adjustmentDebtAmount = debtAmount;
     }
 
     /** 수령 문제 문의 시작 */

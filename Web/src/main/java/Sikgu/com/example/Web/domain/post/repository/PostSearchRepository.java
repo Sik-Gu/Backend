@@ -11,8 +11,8 @@ public interface PostSearchRepository {
     Page<PostSearchRow> search(PostSearchCondition condition);
 
     /**
-     * @param distanceKm 조회하는 사람의 동네 ↔ 거래 장소 거리 (반올림 전)
+     * @param distanceMeters 조회하는 사람의 집 ↔ 글 올린 사람의 집(글에 저장된 위치) 거리. 응답에는 구간으로만 쓴다
      */
-    record PostSearchRow(Long postId, double distanceKm) {
+    record PostSearchRow(Long postId, double distanceMeters) {
     }
 }

@@ -14,6 +14,7 @@ import Sikgu.com.example.Web.global.security.jwt.JwtProvider.JwtClaims;
 import io.jsonwebtoken.JwtException;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -35,11 +36,11 @@ public class LoginService {
     private final Clock clock;
 
     /**
-     * 아이디·비밀번호 확인 후 토큰 발급.
-     * 아이디가 없는 경우와 비밀번호가 틀린 경우를 같은 에러로 응답해서, 가입된 아이디인지 알 수 없게 한다.
+     * 학교 이메일·비밀번호 확인 후 토큰 발급.
+     * 가입되지 않은 이메일과 비밀번호가 틀린 경우를 같은 에러로 응답해서, 가입된 이메일인지 알 수 없게 한다.
      */
     public LoginResponse login(LoginRequest request) {
-        User user = userRepository.findByLoginId(request.loginId())
+        User user = userRepository.findBySchoolEmail(request.email().trim().toLowerCase(Locale.ROOT))
                 .orElseThrow(() -> new GeneralException(ErrorStatus.LOGIN_FAILED));
 
         // BCrypt는 저장된 해시에서 salt를 꺼내 다시 해시해서 비교한다 (D7)

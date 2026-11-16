@@ -23,7 +23,7 @@ public enum ErrorStatus {
     VERIFICATION_CODE_MISMATCH(HttpStatus.BAD_REQUEST, "AUTH4002", "인증코드가 일치하지 않습니다."),
     VERIFICATION_CODE_EXPIRED(HttpStatus.BAD_REQUEST, "AUTH4003", "인증코드가 만료되었거나 발송 이력이 없습니다."),
     VERIFICATION_TOKEN_INVALID(HttpStatus.BAD_REQUEST, "AUTH4004", "이메일 인증이 만료되었습니다. 다시 인증해 주세요."),
-    LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "AUTH4011", "아이디 또는 비밀번호가 일치하지 않습니다."),
+    LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "AUTH4011", "이메일 또는 비밀번호가 일치하지 않습니다."),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH4012", "다시 로그인해 주세요."),
     LOGGED_OUT_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH4013", "로그아웃한 토큰입니다. 다시 로그인해 주세요."),
     SUSPENDED_USER(HttpStatus.FORBIDDEN, "AUTH4031", "이용이 정지된 계정입니다."),
@@ -31,10 +31,8 @@ public enum ErrorStatus {
 
     // 회원
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON404", "사용자를 찾을 수 없습니다."),
-    LOCATION_REQUIRED(HttpStatus.BAD_REQUEST, "USER4001", "동네를 먼저 설정해 주세요."),
-    DUPLICATE_LOGIN_ID(HttpStatus.CONFLICT, "USER409", "이미 사용 중인 아이디입니다."),
+    LOCATION_REQUIRED(HttpStatus.BAD_REQUEST, "USER4001", "집 위치를 먼저 설정해 주세요."),
     DUPLICATE_EMAIL(HttpStatus.CONFLICT, "USER409", "이미 가입된 이메일입니다."),
-    DUPLICATE_USER(HttpStatus.CONFLICT, "USER409", "이미 사용 중인 아이디 또는 이메일입니다."),
 
     // 이미지
     INVALID_IMAGE_FORMAT(HttpStatus.BAD_REQUEST, "IMAGE4001", "jpg, png, webp 이미지만 올릴 수 있습니다."),
@@ -52,6 +50,8 @@ public enum ErrorStatus {
     POST_NOT_EDITABLE(HttpStatus.CONFLICT, "POST4091", "모집중이고 다른 참여자가 없을 때만 수정할 수 있습니다."),
     POST_NOT_CANCELLABLE(HttpStatus.CONFLICT, "POST4092", "주문완료 이후에는 공구를 취소할 수 없습니다."),
 
+    INVALID_SEARCH_KEYWORD(HttpStatus.BAD_REQUEST, "SEARCH4001", "완성된 단어 또는 초성만 검색할 수 있습니다."),
+
     // 참여
     NOT_PARTICIPANT(HttpStatus.FORBIDDEN, "AUTH403", "이 공구의 참여자가 아닙니다."),
     EXCEED_REMAINING_UNITS(HttpStatus.BAD_REQUEST, "PART4001", "남은 단위보다 많이 신청할 수 없습니다."),
@@ -59,6 +59,11 @@ public enum ErrorStatus {
     ALREADY_PARTICIPATED(HttpStatus.CONFLICT, "PART4091", "이미 참여한 공구입니다."),
     HOST_CANNOT_LEAVE(HttpStatus.CONFLICT, "PART4092", "호스트는 참여를 취소할 수 없습니다. 공구 취소를 이용해 주세요."),
     ALREADY_RECEIVED(HttpStatus.CONFLICT, "PART4093", "이미 받았어요를 눌렀습니다."),
+
+    // 나눔 장소 합의
+    DISTRIBUTION_PLACE_NOT_PROPOSED(HttpStatus.CONFLICT, "PLACE4091", "호스트가 아직 나눔 장소를 제안하지 않았습니다."),
+    DISTRIBUTION_PLACE_NOT_AGREED(HttpStatus.CONFLICT, "PLACE4092", "참여자 전원이 나눔 장소에 동의해야 주문할 수 있습니다."),
+    PLACE_ALREADY_AGREED(HttpStatus.CONFLICT, "PLACE4093", "이미 나눔 장소에 동의했습니다."),
 
     // 수령 문의
     INVALID_RECEIVED_UNITS(HttpStatus.BAD_REQUEST, "INQ4001", "수량 부족 문의는 실제로 받은 단위(0 이상, 내 단위 미만)가 필요합니다."),

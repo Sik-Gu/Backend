@@ -117,7 +117,7 @@
 | 400 | `AUTH4002` | 인증코드 불일치 | 보완 |
 | 400 | `AUTH4003` | 인증코드 만료 또는 발송 이력 없음 | 보완 |
 | 400 | `AUTH4004` | `verificationToken`이 유효하지 않거나 만료 | 보완 |
-| 401 | `AUTH4011` | 로그인 실패 (아이디 또는 비밀번호 불일치) | 보완 |
+| 401 | `AUTH4011` | 로그인 실패 (이메일 또는 비밀번호 불일치) | 보완, 11/16 변경 |
 | 401 | `AUTH4012` | Refresh Token 무효·만료 | 보완 |
 | 401 | `AUTH4013` | 로그아웃한 Access Token | 보완 |
 | 403 | `AUTH4031` | **정지된 계정** (미수금 기한 초과 누적 10회) | 보완 [D9] |
@@ -127,8 +127,8 @@
 
 | HTTP | code | 상황 | 출처 |
 |---|---|---|---|
-| 409 | `USER409` | 아이디·이메일 중복 | 원본 |
-| 400 | `USER4001` | 동네(위치)가 설정되지 않음 (공구 목록 거리 계산 불가) | 보완 |
+| 409 | `USER409` | 이미 가입된 이메일 (아이디는 11/16 삭제) | 원본 |
+| 400 | `USER4001` | 집 위치(GPS)가 설정되지 않음 (공구 목록·등록 불가) | 보완 |
 
 ### 1.3 이미지
 
@@ -153,6 +153,10 @@
 | 409 | `PART4091` | 이미 참여한 공구 | 원본(409) |
 | 409 | `PART4092` | 호스트는 참여 취소 불가 (공구 취소 API 사용) | 보완 |
 | 409 | `PART4093` | 이미 '받았어요'를 누름 | 보완 |
+| 400 | `SEARCH4001` | 검색어가 정확한 단어·초성이 아님 (섞인 입력 등) | 11/16 신규 |
+| 409 | `PLACE4091` | 호스트가 아직 나눔 장소를 제안하지 않음 | 11/16 신규 |
+| 409 | `PLACE4092` | 나눔 장소에 동의하지 않은 참여자가 있어 주문 불가 | 11/16 신규 |
+| 409 | `PLACE4093` | 이미 나눔 장소에 동의함 | 11/16 신규 |
 | 403 | `PART4031` | 호스트와 차단 관계라 참여 불가 | 보완 |
 | 409 | `ORDER4091` | 이미 주문 정보가 등록됨 | 보완 |
 | 400 | `INQ4001` | `SHORT_QUANTITY`인데 `receivedUnits`가 없거나 범위 오류 | 보완 |
@@ -201,10 +205,12 @@
 | `PaymentStatus` | `PAID`, `REFUNDED` | |
 | `ReceiptStatus` | `WAITING` 확인 대기, `RECEIVED` 받았어요, `INQUIRING` 문의중 | |
 | `HoldStatus` | `HELD` 보관중, `CAPTURED` 정산됨, `RELEASED` 환급됨 | 응답에 직접 노출 안 함 |
-| `PointTxType` | `CHARGE` 충전, `PAYMENT` 결제, `REFUND` 환급, `SETTLEMENT` 정산, `ADJUSTMENT_REFUND` 차액 환급, `ADJUSTMENT_CHARGE` 차액 추가 청구, `DEBT_REPAYMENT` 미수금 납부 | `INCENTIVE` 삭제 [D11], 차액·미수금 추가 [D9] |
+| `PointTxType` | `CHARGE` 충전, `PAYMENT` 결제, `REFUND` 환급, `SETTLEMENT` 정산, `ADJUSTMENT_REFUND` 차액 환급, `ADJUSTMENT_CHARGE` 차액 추가 청구, `DEBT_REPAYMENT` 미수금 납부 | `INCENTIVE` 삭제 [D11], 차액·미수금 추가 [D9]. **11/16 차액 정산 폐기(D21)로 `ADJUSTMENT_*`·`DEBT_REPAYMENT`는 더 생기지 않음 → 포인트 담당과 정리 필요** |
 | `ChargeMethod` | `KAKAOPAY`, `TOSSPAY`, `CARD` | |
 | `DebtStatus` | `UNPAID` 미납, `PAID` 납부 완료, `WRITTEN_OFF` 종결 | 신규 [D9] |
 | `PostSort` | `LATEST` 최신, `DEADLINE` 마감임박, `POPULAR` 인기(조회수), `PRICE` 가격(단위당 가격 낮은 순) | |
+| `DistanceRange` | `WITHIN_500M` 500m 이내, `WITHIN_1KM` 1km 이내, `OVER_1KM` 1km 초과(상세에서만) | 11/16 신규. 좌표 대신 내려주는 거리 구간 |
+| `LeaveReason` | `CHANGED_MIND` 일반 취소, `PLACE_DISAGREEMENT` 나눔 장소 의견 불일치 | 11/16 신규 |
 | `MyPostTab` | `ONGOING` 진행중, `DONE` 완료 | |
 | `MyPostFilter` | `ALL`, `HOST` 내가 연 공구, `JOINED` 참여한 공구, `ACTION_REQUIRED` 액션 필요 | |
 | `ActionRequired` | `ORDER`, `SHIP`, `DISTRIBUTE`, `CONFIRM_RECEIPT`, `WRITE_REVIEW`, `PAY_DEBT` | `PAY_DEBT` 추가 [D9] |
@@ -227,13 +233,12 @@
 |---|---|---|---|---|
 | POST | `/api/auth/email/send` | 학교 이메일 인증코드 발송 | 공개 | 01 |
 | POST | `/api/auth/email/verify` | 인증코드 확인 → `verificationToken` | 공개 | 01 |
-| GET | `/api/auth/check-id` | 아이디 중복확인 | 공개 | 01 |
-| POST | `/api/auth/signup` | 회원가입 (닉네임 랜덤) | 공개 | 01 |
-| POST | `/api/auth/login` | 로그인 → 토큰 발급 | 공개 | 01 |
+| POST | `/api/auth/signup` | 회원가입: 학교 이메일 + 비밀번호 (닉네임 랜덤) | 공개 | 01 |
+| POST | `/api/auth/login` | 학교 이메일 + 비밀번호 로그인 → 토큰 발급 | 공개 | 01 |
 | POST | `/api/auth/reissue` | 토큰 재발급 | 공개 | 공통 |
 | POST | `/api/auth/logout` | 로그아웃 | 로그인 | 07 |
 | GET | `/api/users/me` | 내 프로필 + 공구 수 + 포인트 | 로그인 | 07 |
-| PATCH | `/api/users/me/location` | 동네 변경 | 로그인 | 07, 02 |
+| PATCH | `/api/users/me/location` | **집 위치(GPS) 설정·변경** (가입 직후 필수) | 로그인 | 01, 07, 02 |
 | GET | `/api/users/me/posts` | 내 공구함 | 로그인 | 07 |
 | GET | `/api/users/{userId}` | 유저 프로필 모달 | 로그인 | 08 |
 | POST | `/api/images` | 이미지 업로드 → URL | 로그인 | 04, 03, 05, 08 |
@@ -243,12 +248,14 @@
 | PATCH | `/api/posts/{postId}` | 공구 수정 | 호스트 | 04 |
 | DELETE | `/api/posts/{postId}` | 공구 취소 (전원 환급) | 호스트 | 03 |
 | POST | `/api/posts/{postId}/participations` | 참여 + 즉시 결제(보류) | 로그인 | 03 |
-| DELETE | `/api/posts/{postId}/participations/me` | 참여 취소 + 환급 | 참여자 | 03 |
+| DELETE | `/api/posts/{postId}/participations/me` | 참여 취소(나가기) + 환급. **장소 의견 불일치**도 여기로 | 참여자 | 03 |
+| PUT | `/api/posts/{postId}/distribution-place` | **나눔 장소 제안·변경** (주문 전) | 호스트 | 03 |
+| POST | `/api/posts/{postId}/distribution-place/agreement` | **나눔 장소 동의** | 참여자 | 03 |
 | GET | `/api/posts/{postId}/participations` | 결제·수령 현황 | 호스트·참여자 | 03-E |
-| POST | `/api/posts/{postId}/order` | 영수증 등록 + 주문 완료 + **차액 정산** | 호스트 | 03-C |
-| GET | `/api/posts/{postId}/order` | 주문 정보·영수증·차액 | 호스트·참여자 | 03-C, D, E |
+| POST | `/api/posts/{postId}/order` | 영수증 사진 등록 + 주문 완료 (전원 장소 동의 필요, 차액 정산 없음) | 호스트 | 03-C |
+| GET | `/api/posts/{postId}/order` | 주문 정보·영수증 | 호스트·참여자 | 03-C, D, E |
 | PATCH | `/api/posts/{postId}/order/shipping` | 택배사·송장 + 배송 시작 | 호스트 | 03-C |
-| PATCH | `/api/posts/{postId}/order/distribution` | **나눔 일정·장소 입력** | 호스트 | 03-C |
+| PATCH | `/api/posts/{postId}/order/distribution` | **나눔 일시 입력** (장소는 합의한 곳) | 호스트 | 03-C |
 | POST | `/api/posts/{postId}/receipt` | 받았어요 | 참여자 | 03-E |
 | POST | `/api/posts/{postId}/inquiries` | 수령 문제 문의 | 참여자 | 03-F |
 | GET | `/api/posts/{postId}/inquiries` | 문의 목록 | 호스트·참여자 | 03-C, 03-F |
@@ -338,51 +345,23 @@
 | 400 | `AUTH4002` | 인증코드 불일치 |
 | 400 | `AUTH4003` | 인증코드 만료 또는 발송 이력 없음 |
 
-### GET /api/auth/check-id — 아이디 중복확인
-
-- 권한: 공개 · 화면: 01 가입 2단계
-
-**Query**
-
-| 파라미터 | 타입 | 필수 | 설명 |
-|---|---|---|---|
-| `loginId` | string | Y | 확인할 아이디 |
-
-**Response** (보완) — 중복이어도 HTTP 200에 `available: false`
-```json
-{ "loginId": "haeseung01", "available": true }
-```
-
-**Errors**
-
-| HTTP | code | 상황 |
-|---|---|---|
-| 400 | `COMMON400` | `loginId` 누락·형식 오류 |
-
 ### POST /api/auth/signup — 회원가입
 
 - 권한: 공개 · 화면: 01
-- 닉네임은 서버가 랜덤으로 줍니다. 비밀번호는 BCrypt로 저장합니다 [D7]. 가입 시 포인트 지갑(잔액 0)을 함께 만듭니다.
-- `location`은 프론트가 카카오맵 SDK로 고른 동 정보입니다. 좌표는 사용자 GPS가 아니라 **동의 중심 좌표**를 보냅니다 [D15]
+- **학교 이메일 + 비밀번호**로만 가입합니다. 아이디는 따로 없습니다 (2026-11-16 변경, DB.md D16).
+- 학교 이메일은 `email/send` → `email/verify`로 받은 `verificationToken`으로 확인합니다.
+- 닉네임은 서버가 랜덤으로 줍니다 ("형용사 + 음식", 예: 배고픈 고구마). 비밀번호는 BCrypt로 저장합니다 [D7]. 가입 시 포인트 지갑(잔액 0)을 함께 만듭니다.
+- **집 위치는 가입 요청에 넣지 않습니다.** 가입 직후 `PATCH /api/users/me/location`으로 GPS 위치를 설정해야 공구 목록·등록을 쓸 수 있습니다 (D18).
 
 **Request Body**
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `verificationToken` | string | Y | 이메일 인증 후 받은 토큰 |
-| `loginId` | string | Y | 아이디 |
-| `password` | string | Y | 비밀번호 |
-| `location.dongName` | string | Y | 동 이름 |
-| `location.latitude` | double | Y | 위도 |
-| `location.longitude` | double | Y | 경도 |
+| `password` | string | Y | 비밀번호. 영문·숫자·특수문자 포함 8~20자 (가정) |
 
 ```json
-{
-  "verificationToken": "eyJ...",
-  "loginId": "haeseung01",
-  "password": "********",
-  "location": { "dongName": "역삼동", "latitude": 37.5006, "longitude": 127.0364 }
-}
+{ "verificationToken": "3f2c...", "password": "********" }
 ```
 
 **Response**
@@ -394,24 +373,25 @@
 
 | HTTP | code | 상황 |
 |---|---|---|
-| 400 | `COMMON400` | 필수 값 누락·형식 오류 |
+| 400 | `COMMON400` | 필수 값 누락·비밀번호 형식 오류 |
 | 400 | `AUTH4004` | `verificationToken` 무효·만료 |
-| 409 | `USER409` | 아이디 또는 이메일 중복 |
+| 409 | `USER409` | 이미 가입된 이메일 |
 
 ### POST /api/auth/login — 로그인
 
 - 권한: 공개 · 화면: 01
+- **학교 이메일 + 비밀번호**로 로그인합니다. 이메일은 대소문자를 구분하지 않습니다.
 - `BCryptPasswordEncoder.matches()`로 비밀번호를 비교하고, 일치하면 토큰을 발급합니다 [D7]
 
 **Request Body**
 
 | 필드 | 타입 | 필수 |
 |---|---|---|
-| `loginId` | string | Y |
+| `email` | string | Y |
 | `password` | string | Y |
 
 ```json
-{ "loginId": "haeseung01", "password": "********" }
+{ "email": "haeseung@korea.ac.kr", "password": "********" }
 ```
 
 **Response**
@@ -428,8 +408,8 @@
 
 | HTTP | code | 상황 |
 |---|---|---|
-| 400 | `COMMON400` | 아이디·비밀번호 누락 |
-| 401 | `AUTH4011` | 아이디 또는 비밀번호 불일치 (어느 쪽이 틀렸는지 구분하지 않음) |
+| 400 | `COMMON400` | 이메일·비밀번호 누락, 이메일 형식 오류 |
+| 401 | `AUTH4011` | 이메일 또는 비밀번호 불일치 (어느 쪽이 틀렸는지 구분하지 않음) |
 | 403 | `AUTH4031` | 정지된 계정 [D9] |
 
 ### POST /api/auth/reissue — 토큰 재발급
@@ -479,7 +459,6 @@
 ```json
 {
   "userId": 12,
-  "loginId": "haeseung01",
   "nickname": "배고픈 고구마",
   "email": "haeseung@korea.ac.kr",
   "universityName": "○○대학교",
@@ -496,16 +475,19 @@
 
 | 필드 | 설명 |
 |---|---|
+| `location` | 내 집 위치. **본인에게만** 좌표를 보여줍니다. 아직 설정 전이면 값이 모두 `null` |
 | `point.unpaidDebt` | 미납 미수금 합계 [D9] |
 | `restricted` | 미납 미수금이 있어 공구 참여·등록이 막혔는지 [D9] |
 
 **Errors**: `AUTH401`
 
-### PATCH /api/users/me/location — 동네 변경
+### PATCH /api/users/me/location — 집 위치(GPS) 설정·변경
 
-- 권한: 로그인 · 화면: 07, 02
-- 이후 공구 목록의 거리 계산 기준이 바뀝니다. 이미 등록한 게시글의 거래 장소는 바뀌지 않습니다.
-- 요청 값은 프론트가 카카오맵 SDK로 고른 동 정보입니다. 좌표는 **동의 중심 좌표**를 보냅니다 [D15]
+- 권한: 로그인 · 화면: 01(가입 직후), 07, 02
+- **가입 직후 한 번 꼭 설정합니다.** 설정 전에는 공구 목록(`GET /api/posts`)과 공구 등록(`POST /api/posts`)이 `USER4001`로 막힙니다 (D18).
+- 좌표는 기기 **GPS로 구한 집 위치**입니다. 동 이름은 프론트가 카카오맵 SDK(좌표 → 행정동)로 구해서 보냅니다 (D17, D15 변경).
+- 이 좌표는 공구 목록의 거리(500m·1km) 기준이 됩니다. **다른 사용자에게는 좌표를 절대 보여주지 않고** 동 이름과 거리 구간만 보여줍니다.
+- 이미 올린 게시글에 저장된 위치는 바뀌지 않습니다.
 
 **Request Body**
 
@@ -516,12 +498,12 @@
 | `longitude` | double | Y |
 
 ```json
-{ "dongName": "역삼동", "latitude": 37.5006, "longitude": 127.0364 }
+{ "dongName": "역삼동", "latitude": 37.50061, "longitude": 127.03642 }
 ```
 
-**Response** (보완)
+**Response** (본인 응답이라 좌표 포함)
 ```json
-{ "dongName": "역삼동", "latitude": 37.5006, "longitude": 127.0364 }
+{ "dongName": "역삼동", "latitude": 37.50061, "longitude": 127.03642 }
 ```
 
 **Errors**: `COMMON400`, `AUTH401`
@@ -662,19 +644,31 @@
 ### GET /api/posts — 공구 목록·검색·필터
 
 - 권한: 로그인 · 화면: 02
-- 거리는 **내 동네 좌표 ↔ 공구 거래 장소 좌표** 사이의 직선 거리입니다. 두 좌표 모두 동 중심 좌표라 동 크기만큼 오차가 있습니다 [D15]
-- 차단 관계인 사용자의 글은 빠집니다 (차단 기능 구현 후 적용)
+- 거리는 **내 집 위치(GPS) ↔ 글 올린 사람의 집 위치(글 등록 시 저장)** 사이의 직선 거리입니다 (D17). 반경 안의 글만 나옵니다.
+- **상대 위치는 알 수 없습니다.** 응답에 좌표나 정확한 거리(m)를 넣지 않고 `distance` 구간(`WITHIN_500M`, `WITHIN_1KM`)만 줍니다. 여러 곳에서 조회해 집 위치를 역산하는 것을 막기 위해서입니다.
+- 차단 관계인 사용자의 글은 빠집니다.
 
 **Query**
 
 | 파라미터 | 타입 | 필수 | 기본값 | 설명 |
 |---|---|---|---|---|
-| `keyword` | string | N | 없음 | 제목·상품명 부분 일치, 대소문자 무시 (1~50자) |
+| `keyword` | string | N | 없음 | **정확한 단어** 또는 **초성**만 (1~50자). 아래 표 참고 |
 | `category` | Category | N | 전체 | |
-| `radius` | int | N | `3` | `1`, `3`, `5` (km)만 허용 |
+| `radius` | int | N | `1000` | `500`, `1000` (m)만 허용 |
 | `recruitingOnly` | boolean | N | `true` | `true`면 모집중(`RECRUITING`)만. `false`면 취소(`CANCELLED`)를 뺀 전체 |
 | `sort` | PostSort | N | `LATEST` | 아래 표 참고 |
 | `page`, `size` | int | N | `0`, `9` | `size`는 1~50 |
+
+**검색어 규칙 (D19)**
+
+| 입력 | 방식 | 예 |
+|---|---|---|
+| 완성된 단어 | **제목·상품명에 그 단어가 통째로** 있어야 함. 대소문자 무시. 여러 단어면 모두(AND) | "생수" → "생수 공구해요" O, "생수병 나눔" X |
+| 초성만 (ㄱ~ㅎ) | **제목** 초성(공백 제거)에 들어 있으면 찾음. 띄어쓰기 무시 | "ㅅㅅ", "ㅅㅅㄱㄱ", "ㅅㅅ ㄱㄱ" → "생수 공구해요" O |
+| 섞인 입력 | 거부 (`SEARCH4001`) | "생ㅅ", "ㅏㅏ" |
+
+- 단어는 글자·숫자가 아닌 문자(공백, `/`, `!` 등)를 경계로 나눕니다. "2L생수"는 한 단어라 "생수"로 찾지 않습니다.
+- 부분 일치(LIKE `%생수%`)나 FULLTEXT 검색은 쓰지 않습니다.
 
 | `sort` | 정렬 |
 |---|---|
@@ -698,7 +692,7 @@
   "filledUnits": 4,
   "participantCount": 3,
   "dongName": "역삼동",
-  "distanceKm": 0.8,
+  "distance": "WITHIN_500M",
   "status": "RECRUITING",
   "viewCount": 52,
   "deadlineAt": "2026-10-29T23:59:00",
@@ -711,15 +705,16 @@
 | `thumbnailUrl` | 첫 번째 이미지. 이미지가 없으면 `null` → 프론트가 기본 이미지 표시 |
 | `filledUnits` | 지금까지 찬 단위 수. **호스트 본인 단위 포함** [D3, D8] |
 | `participantCount` | 참여 인원. 호스트 포함 [D3] |
-| `dongName` | 거래 장소의 동 이름 |
-| `distanceKm` | 내 동네에서 거래 장소까지 거리. 소수 첫째 자리 반올림 |
+| `dongName` | 글 올린 사람의 동 이름 (글 등록 시점) |
+| `distance` | `WITHIN_500M`(500m 이내), `WITHIN_1KM`(500m 초과 1km 이내). 상세에서는 `OVER_1KM`도 나올 수 있음 |
 
 **Errors**
 
 | HTTP | code | 상황 |
 |---|---|---|
-| 400 | `COMMON400` | `radius`가 1·3·5가 아님, `size` 범위 오류, 없는 `category`·`sort` 값 |
-| 400 | `USER4001` | 내 동네가 설정되지 않음 |
+| 400 | `COMMON400` | `radius`가 500·1000이 아님, `size` 범위 오류, 없는 `category`·`sort` 값 |
+| 400 | `SEARCH4001` | 완성형 글자와 초성이 섞인 검색어, 검색할 단어가 없음 |
+| 400 | `USER4001` | 집 위치가 설정되지 않음 |
 | 401 | `AUTH401` | 토큰 없음·만료 |
 
 ### GET /api/posts/{postId} — 공구 상세
@@ -753,14 +748,23 @@
     "cancelledAt": null
   },
   "dongName": "역삼동",
-  "distanceKm": 0.8,
-  "tradePlaceName": "○○대학교 정문 앞",
+  "distance": "WITHIN_500M",
+  "distributionPlace": {
+    "name": "○○대학교 정문 편의점 앞",
+    "latitude": 37.5012,
+    "longitude": 127.0396,
+    "proposedAt": "2026-10-28T09:00:00",
+    "agreedCount": 2,
+    "memberCount": 3,
+    "allAgreed": false,
+    "myAgreed": false
+  },
   "deadlineAt": "2026-10-29T23:59:00",
   "viewCount": 52,
   "createdAt": "2026-10-27T14:00:00",
   "host": { "userId": 12, "nickname": "배고픈 고구마", "rating": 4.9, "tradeCount": 23, "mainCategories": ["FOOD"] },
   "participants": [
-    { "userId": 12, "nickname": "배고픈 고구마", "role": "HOST", "units": 2, "rating": 4.9, "tradeCount": 23, "mainCategories": ["FOOD", "DAILY"] }
+    { "userId": 12, "nickname": "배고픈 고구마", "role": "HOST", "units": 2, "rating": 4.9, "tradeCount": 23, "mainCategories": ["FOOD", "DAILY"], "placeAgreed": true }
   ],
   "me": { "role": "PARTICIPANT", "units": 1, "paymentStatus": "PAID", "receiptStatus": "WAITING" },
   "maxSelectableUnits": 2,
@@ -771,7 +775,11 @@
 | 필드 | 설명 |
 |---|---|
 | `statusTimeline` | 단계별로 넘어간 시각 [D5]. `cancelledAt` 추가 |
-| `statusTimeline.distributedAt` | 호스트가 나눔 일정·장소를 입력한 시각 [D6] |
+| `statusTimeline.distributedAt` | 호스트가 나눔 일시를 입력한 시각 [D6] |
+| `distance` | 내 집 ↔ 글 올린 사람 집 거리 구간 (`WITHIN_500M`, `WITHIN_1KM`, `OVER_1KM`). 좌표·정확한 거리는 주지 않음 |
+| `distributionPlace` | 나눔 장소 합의 현황 (D20). 호스트가 제안하기 전이면 `null`. 나눔 장소는 공개 장소라 좌표를 줌 (좌표는 선택 입력이라 `null`일 수 있음) |
+| `distributionPlace.myAgreed` | 내가 동의했는지. 참여자가 아니면 `null` |
+| `participants[].placeAgreed` | 나눔 장소 동의 여부 |
 | `imageUrls` | 등록 순서대로. 비어 있으면 프론트가 기본 이미지 표시 |
 | `participants` | 호스트 포함, 참여 취소(환급)한 사람은 빠짐 |
 | `host.mainCategories`, `participants[].mainCategories` | 정산완료 공구가 많은 카테고리 상위 2개. 거래가 없으면 빈 배열 (보완) |
@@ -789,9 +797,11 @@
 ### POST /api/posts — 공구 등록
 
 - 권한: 로그인 · 화면: 04
+- 선행조건: **내 집 위치가 설정돼 있어야 합니다** (D18). 글에 지금의 집 좌표와 동 이름을 저장합니다 (D17).
+- 위치·거래 장소는 받지 않습니다. 나눔 장소는 모집 중에 참여자와 정합니다 (D20).
 - 처리 (한 트랜잭션)
   1. 미납 미수금이 있으면 거부 [D9]
-  2. 게시글을 `RECRUITING`으로 생성
+  2. 게시글을 `RECRUITING`으로 생성 (호스트 집 위치, 검색 색인 저장)
   3. 호스트 참여(`HOST`, `hostUnits`) 생성
   4. **호스트 몫 `hostUnits × unitPrice`를 포인트로 결제·보류** [D8]
   5. `filledUnits = hostUnits`, `participantCount = 1` [D3]
@@ -812,10 +822,6 @@
 | `totalPrice` | int | Y | 총 가격 (호스트가 예상한 가격), 1~10,000,000. `totalUnits`로 나누어떨어져야 함 |
 | `hostUnits` | int | Y | 호스트 본인 구매 단위 (1 이상 `totalUnits - 1` 이하) |
 | `deadlineAt` | datetime | Y | 모집 마감 일시. 현재보다 미래 |
-| `tradePlace.name` | string | Y | 거래 장소 이름, 1~100자 |
-| `tradePlace.dongName` | string | Y | 거래 장소의 동 이름. 프론트가 카카오맵 SDK로 구함 [D15] |
-| `tradePlace.latitude` | double | Y | 거래 장소 위도 |
-| `tradePlace.longitude` | double | Y | 거래 장소 경도 |
 
 ```json
 {
@@ -829,14 +835,12 @@
   "totalUnits": 6,
   "totalPrice": 29040,
   "hostUnits": 2,
-  "deadlineAt": "2026-10-29T23:59:00",
-  "tradePlace": { "name": "○○대학교 정문 앞", "dongName": "역삼동", "latitude": 37.5012, "longitude": 127.0396 }
+  "deadlineAt": "2026-10-29T23:59:00"
 }
 ```
 
 - 단위당 가격(`unitPrice = totalPrice / totalUnits`)은 서버가 계산합니다. 나누어떨어지지 않으면 `POST4003`으로 거부합니다 (가정: 나머지 처리 방식 미정)
-- `totalPrice`는 예상 가격이고, 실제 가격과 다르면 영수증 등록 때 차액을 정산합니다 [D9]
-- 거래 장소는 사람들이 만나는 공개 장소라, 공구 위치는 동 중심 좌표가 아니라 **거래 장소 좌표 그대로** 저장합니다 (보완)
+- `totalPrice`가 최종 가격입니다. 할인·배달비 등으로 실제 결제 금액이 달라져도 **차액 정산은 하지 않습니다** (D9 폐기 → D21)
 
 **Response**
 ```json
@@ -856,6 +860,7 @@
 | 400 | `POST4001` | `hostUnits` 범위 오류 |
 | 400 | `POST4002` | `deadlineAt`이 과거 |
 | 400 | `POST4003` | `totalPrice`가 `totalUnits`로 나누어떨어지지 않음 |
+| 400 | `USER4001` | 집 위치가 설정되지 않음 |
 | 403 | `POINT4031` | 미납 미수금이 있어 등록 불가 [D9] |
 | 409 | `POINT409` | 호스트 몫을 결제할 잔액 부족 → 충전 후 등록 안내 [D8] |
 | 409 | `POINT4091` | 지갑 동시 변경 충돌 |
@@ -864,9 +869,10 @@
 
 - 권한: 호스트 · 화면: 04
 - 선행조건: `RECRUITING`이고 호스트 외 참여자가 없음
-- 보낸 필드만 바뀝니다. 수정 가능: `title`, `productName`, `productLink`, `category`, `content`, `imageUrls`, `deadlineAt`, `tradePlace`
+- 보낸 필드만 바뀝니다. 수정 가능: `title`, `productName`, `productLink`, `category`, `content`, `imageUrls`, `deadlineAt`. 제목·상품명이 바뀌면 검색 색인도 다시 만듭니다
+- 글에 저장된 위치는 수정할 수 없습니다. 나눔 장소는 `PUT .../distribution-place`로 정합니다
 - `totalUnits`, `totalPrice`, `hostUnits`, `baseUnit`은 수정할 수 없습니다. 호스트가 이미 보류한 금액이 달라지기 때문입니다 [D8]. 바꾸려면 취소 후 다시 등록합니다. 보내도 **무시**합니다 (보완)
-- 검증 규칙은 등록과 같습니다. `tradePlace`를 바꿀 때는 `name`, `dongName`, `latitude`, `longitude`를 모두 보냅니다
+- 검증 규칙은 등록과 같습니다
 - `imageUrls`를 보내면 이미지 목록 전체를 그 값으로 바꿉니다
 
 **Request Body** — 등록과 같은 필드 중 수정 가능한 것만
@@ -919,14 +925,15 @@
 | 단계 | 상태 | 넘어가는 조건 | 포인트 처리 | API |
 |---|---|---|---|---|
 | 1 | `RECRUITING` | 공구 등록 | **호스트 몫 보류** [D8] | `POST /api/posts` |
+| 1~2 | (모집 중) | **호스트가 나눔 장소 제안 → 참여자 동의. 의견이 맞지 않으면 나가기(전액 환급)** (D20) | 나가면 환급 | `PUT .../distribution-place`, `POST .../distribution-place/agreement`, `DELETE .../participations/me?reason=PLACE_DISAGREEMENT` |
 | 2 | `RECRUITED` | 총 단위가 다 참 (자동) | 참여 시 보류 | `POST .../participations` |
-| 3 | `ORDERED` | 영수증 등록 | **차액 환급 또는 추가 청구** [D9] | `POST .../order` |
+| 3 | `ORDERED` | 영수증 사진 등록. **전원 장소 동의 필요** (D20) | 없음 (차액 정산 안 함, D21) | `POST .../order` |
 | 4 | `SHIPPING` | 배송 시작 | - | `PATCH .../order/shipping` |
-| 5 | `DISTRIBUTED` | **호스트가 나눔 일정·장소 입력** [D6] | - | `PATCH .../order/distribution` |
+| 5 | `DISTRIBUTED` | **호스트가 나눔 일시 입력** (장소는 합의한 곳) [D6] | - | `PATCH .../order/distribution` |
 | 6 | `SETTLED` | 전원 `RECEIVED` (직접 또는 **나눔 예정 시각 + 3일 자동** [D10]) | CAPTURED → 호스트 정산 (**인센티브 없음** [D11]) | `POST .../receipt`, 스케줄러 |
 | 예외 | `CANCELLED` | 호스트 취소 | RELEASED → 호스트 포함 전원 환급 | `DELETE /api/posts/{postId}` |
 
-- `RECRUITED`에서 참여 취소가 일어나면 `RECRUITING`으로 돌아갑니다.
+- `RECRUITED`에서 참여 취소가 일어나면 `RECRUITING`으로 돌아가 빈자리를 다시 모집합니다.
 - 상태가 바뀔 때마다 채팅방에 SYSTEM 메시지를 보냅니다 (보완).
 - 모집 마감 시 인원 미달 자동 취소는 **보류** 상태입니다 (DB.md 8.1).
 
@@ -971,24 +978,86 @@
 | 409 | `POINT409` | 잔액 부족 |
 | 409 | `POINT4091` | 지갑 동시 변경 충돌 [D4] |
 
-### DELETE /api/posts/{postId}/participations/me — 참여 취소
+### DELETE /api/posts/{postId}/participations/me — 참여 취소(나가기)
 
 - 권한: 참여자 · 화면: 03
-- 선행조건: `RECRUITING` 또는 `RECRUITED`. 호스트는 호출 불가 (공구 취소 API 사용)
-- 처리: 게시글 락 → `filledUnits -= units`, `participantCount -= 1` → 지갑 환급(`REFUND`) [D3, D4]. 채팅방 퇴장. `RECRUITED`였으면 `RECRUITING`으로 돌아갑니다.
+- 선행조건: `RECRUITING` 또는 `RECRUITED` (주문 전). 호스트는 호출 불가 (공구 취소 API 사용)
+- **나눔 장소를 정하다가 의견이 맞지 않아 나가는 경우도 이 API**를 씁니다. `reason=PLACE_DISAGREEMENT`를 보내면 사유를 기록하고 채팅방에 "OO님이 나눔 장소 의견이 맞지 않아 나갔어요" SYSTEM 메시지를 보냅니다 (D20).
+- 처리: 게시글 락 → `filledUnits -= units`, `participantCount -= 1` → 지갑 **전액** 환급(`REFUND`) [D3, D4]. 채팅방 퇴장. `RECRUITED`였으면 `RECRUITING`으로 돌아가 빈자리를 다시 모집합니다.
+- 나갔다가 다시 참여하면 장소 동의를 다시 받아야 합니다.
 
-**Response** (보완)
+**Query**
+
+| 파라미터 | 타입 | 필수 | 기본값 | 설명 |
+|---|---|---|---|---|
+| `reason` | LeaveReason | N | `CHANGED_MIND` | `CHANGED_MIND`(일반 취소), `PLACE_DISAGREEMENT`(나눔 장소 의견 불일치) |
+
+**Response**
 ```json
-{ "refundedPoint": 4840, "balanceAfter": 12000, "postStatus": "RECRUITING" }
+{ "refundedPoint": 4840, "balanceAfter": 12000, "postStatus": "RECRUITING", "leaveReason": "PLACE_DISAGREEMENT" }
 ```
 
 **Errors**
 
 | HTTP | code | 상황 |
 |---|---|---|
+| 400 | `COMMON400` | 없는 `reason` 값 |
 | 403 | `AUTH403` | 참여자가 아님 |
 | 409 | `PART4092` | 호스트는 참여 취소 불가 |
 | 409 | `POST409` | 주문완료 이후라 취소 불가 |
+| 409 | `PLACE4091` | 호스트가 아직 장소를 제안하지 않았는데 `PLACE_DISAGREEMENT`로 나가려 함 |
+
+### PUT /api/posts/{postId}/distribution-place — 나눔 장소 제안·변경 (D20)
+
+- 권한: 호스트 · 화면: 03
+- 선행조건: `RECRUITING` 또는 `RECRUITED` (주문 전). 모집 중에도 미리 제안할 수 있습니다.
+- 처리: 게시글 락 → 장소 저장 → **참여자 동의를 모두 초기화** (호스트는 제안한 사람이라 동의 상태 유지) → 채팅방 SYSTEM 메시지
+- 나눔 장소는 공개 장소(학교 정문, 편의점 앞 등)입니다. 좌표를 보내면 상세에서 지도에 표시합니다. 집 위치와는 별개입니다.
+
+**Request Body**
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `name` | string | Y | 나눔 장소 이름, 1~100자 |
+| `latitude` | double | N | 장소 위도. 경도와 함께 보내거나 둘 다 비움 |
+| `longitude` | double | N | 장소 경도 |
+
+```json
+{ "name": "○○대학교 정문 편의점 앞", "latitude": 37.5012, "longitude": 127.0396 }
+```
+
+**Response** — 상세의 `distributionPlace`와 같은 형식
+```json
+{ "name": "○○대학교 정문 편의점 앞", "latitude": 37.5012, "longitude": 127.0396, "proposedAt": "2026-10-28T09:00:00",
+  "agreedCount": 1, "memberCount": 3, "allAgreed": false, "myAgreed": true }
+```
+
+**Errors**
+
+| HTTP | code | 상황 |
+|---|---|---|
+| 400 | `COMMON400` | 이름 누락, 좌표를 하나만 보냄 |
+| 403 | `AUTH403` | 호스트가 아님 |
+| 404 | `COMMON404` | 게시글 없음 |
+| 409 | `POST409` | 주문 이후라 바꿀 수 없음 |
+
+### POST /api/posts/{postId}/distribution-place/agreement — 나눔 장소 동의 (D20)
+
+- 권한: 참여자 · 화면: 03
+- 선행조건: 주문 전, 호스트가 장소를 제안함
+- 바디 없음. 전원이 동의했고 `RECRUITED`면 채팅방에 "호스트가 주문을 진행해요" SYSTEM 메시지
+- 동의하지 않으려면 나가기(`DELETE .../participations/me?reason=PLACE_DISAGREEMENT`)를 씁니다. 다른 장소를 원하면 채팅으로 이야기하고 호스트가 장소를 바꿉니다.
+
+**Response** — 위와 같은 형식
+
+**Errors**
+
+| HTTP | code | 상황 |
+|---|---|---|
+| 403 | `AUTH403` | 참여자가 아님 |
+| 409 | `POST409` | 주문 이후 |
+| 409 | `PLACE4091` | 아직 장소 제안 전 |
+| 409 | `PLACE4093` | 이미 동의함 |
 
 ### GET /api/posts/{postId}/participations — 결제·수령 현황
 
@@ -1028,73 +1097,41 @@
 ### POST /api/posts/{postId}/order — 영수증 등록 + 주문 완료
 
 - 권한: 호스트 · 화면: 03-C
-- 선행조건: `RECRUITED`, 주문 미등록
-- 처리
-  1. 주문 정보·영수증 이미지 저장, `ORDERED` (`orderedAt`)
-  2. `difference = receiptAmount - totalPrice` 계산 후 **차액 정산** [D9]
-
-**차액 정산 [D9]**
-
-| 경우 | 처리 |
-|---|---|
-| 같음 (`difference = 0`) | 없음 |
-| 영수증이 더 쌈 (`difference < 0`) | 차액을 단위 비율대로 나눠 **호스트 포함** 각자에게 환급 (`ADJUSTMENT_REFUND`) |
-| 영수증이 더 비쌈 (`difference > 0`) | 차액을 단위 비율대로 **추가 청구** (`ADJUSTMENT_CHARGE`) + 알림. 상한 없음. 잔액이 부족하면 부족분은 **미수금**(납부 기한 7일) |
-
-- 1인당 금액 = `|difference| × 내 단위 / totalUnits` (원 단위 내림). 나눗셈 나머지는 호스트에게 몰아서 처리 (DB.md D9 제안)
-- 알림은 채팅방 SYSTEM 메시지로 보냅니다 (보완). 별도 알림 기능은 미정입니다.
+- 선행조건: `RECRUITED`, 주문 미등록, **나눔 장소 제안됨 + 참여자 전원 동의** (D20)
+- 처리: 주문 정보·영수증 이미지 저장, `ORDERED` (`orderedAt`), 채팅방 SYSTEM 메시지
+- **차액 정산은 하지 않습니다** (D21). 할인·배달비 등으로 실제 결제 금액이 게시글 가격과 달라도 게시글 가격(`totalPrice`) 기준으로 끝까지 진행합니다. 영수증 금액도 받지 않습니다.
 
 **Request Body**
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `receiptAmount` | int | Y | 영수증 금액 (1 이상) |
-| `receiptImageUrls` | string[] | Y | 영수증 사진 1장 이상 |
+| `receiptImageUrls` | string[] | Y | 영수증 사진 1~5장 |
 
 ```json
-{ "receiptAmount": 31000, "receiptImageUrls": ["https://.../receipt1.jpg"] }
+{ "receiptImageUrls": ["https://.../receipt1.jpg"] }
 ```
 
 **Response**
 ```json
-{
-  "orderId": 5,
-  "postStatus": "ORDERED",
-  "receiptAmount": 31000,
-  "recruitedAmount": 29040,
-  "amountMatched": false,
-  "difference": 1960,
-  "adjustmentType": "CHARGE",
-  "adjustments": [
-    { "userId": 12, "role": "HOST", "units": 2, "amount": 656, "chargedAmount": 656, "debtAmount": 0 },
-    { "userId": 15, "role": "PARTICIPANT", "units": 1, "amount": 326, "chargedAmount": 0, "debtAmount": 326 }
-  ]
-}
+{ "orderId": 5, "postStatus": "ORDERED", "totalPrice": 29040, "distributePlace": "○○대학교 정문 편의점 앞" }
 ```
-
-| 필드 | 설명 |
-|---|---|
-| `recruitedAmount` | 모집 금액 (`unitPrice × totalUnits`) |
-| `difference` | 영수증 금액 − 모집 금액 [D9] |
-| `adjustmentType` | `NONE`, `REFUND`(더 쌈), `CHARGE`(더 비쌈) [D9] |
-| `adjustments[].amount` | 이 사람에게 환급하거나 청구할 금액 |
-| `adjustments[].chargedAmount` | 실제로 지갑에서 빠진 금액 (`CHARGE`일 때) |
-| `adjustments[].debtAmount` | 잔액 부족으로 미수금이 된 금액 (`CHARGE`일 때) [D9] |
 
 **Errors**
 
 | HTTP | code | 상황 |
 |---|---|---|
-| 400 | `COMMON400` | 금액 오류, 영수증 사진 없음 |
+| 400 | `COMMON400` | 영수증 사진 없음 |
 | 403 | `AUTH403` | 호스트가 아님 |
 | 409 | `POST409` | `RECRUITED`가 아님 |
 | 409 | `ORDER4091` | 이미 주문 정보가 등록됨 |
+| 409 | `PLACE4091` | 나눔 장소를 아직 제안하지 않음 |
+| 409 | `PLACE4092` | 나눔 장소에 동의하지 않은 참여자가 있음 |
 
 ### GET /api/posts/{postId}/order — 주문 정보 조회
 
 - 권한: 호스트·참여자 · 화면: 03-C, 03-D, 03-E
 - 선행조건: 주문 등록 후. 그 전에는 `COMMON404`
-- 참여자는 영수증 사진과 금액을 보고 이상하면 문의·신고합니다. 금액 확인은 MVP에선 호스트 입력 + 사진 + 참여자 확인입니다 [D9]
+- 참여자는 영수증 사진을 보고 이상하면 문의·신고합니다. 금액은 게시글 가격 기준이며 차액 정산은 없습니다 (D21)
 
 **Response**
 ```json
@@ -1102,26 +1139,20 @@
   "orderId": 5,
   "courier": "CJ대한통운",
   "trackingNumber": "612345678901",
-  "receiptAmount": 31000,
-  "recruitedAmount": 29040,
-  "amountMatched": false,
-  "difference": 1960,
-  "adjustmentType": "CHARGE",
-  "myAdjustment": { "amount": 326, "chargedAmount": 0, "debtAmount": 326 },
+  "totalPrice": 29040,
   "receiptImageUrls": ["https://.../receipt1.jpg"],
   "registeredAt": "2026-10-29T10:20:00",
   "distributeAt": "2026-10-30T19:00:00",
-  "distributePlace": "○○대학교 정문 앞",
+  "distributePlace": "○○대학교 정문 편의점 앞",
   "autoConfirmAt": "2026-11-02T19:00:00",
-  "heldPoint": 30674
+  "heldPoint": 29040
 }
 ```
 
 | 필드 | 설명 |
 |---|---|
 | `courier`, `trackingNumber` | 배송 시작 전, 또는 오프라인 구매면 `null` |
-| `distributeAt`, `distributePlace` | 나눔 일정 입력 전에는 `null` |
-| `myAdjustment` | 내 차액 정산 내역 [D9] |
+| `distributeAt`, `distributePlace` | 나눔 일시 입력 전에는 `null`. 장소는 주문 전에 합의한 곳 |
 | `autoConfirmAt` | `distributeAt + 3일`. 이때까지 '받았어요'를 안 누르면 자동 수령 처리 [D10] |
 | `heldPoint` | 이 공구에서 아직 보류 중인 포인트 합계 |
 
@@ -1156,15 +1187,15 @@
 | 403 | `AUTH403` | 호스트가 아님 |
 | 409 | `POST409` | `ORDERED`가 아님 |
 
-### PATCH /api/posts/{postId}/order/distribution — 나눔 일정·장소 입력 [D6]
+### PATCH /api/posts/{postId}/order/distribution — 나눔 일시 입력 [D6]
 
 - 권한: 호스트 · 화면: 03-C
 - 선행조건: `SHIPPING`
 - 처리 [D6]
-  1. 나눔 일정·장소 저장
+  1. 나눔 일시 저장. **장소는 주문 전에 전원이 합의한 곳**을 그대로 씁니다 (D20)
   2. 게시글 `DISTRIBUTED` (`distributedAt` = 입력 시각)
   3. 호스트 본인 참여는 `RECEIVED`로 처리, 참여자는 `WAITING`
-- **호스트의 별도 '나눔완료' 버튼은 없습니다.** 직접 만나서 나누면 호스트의 나눔완료와 참여자의 '받았어요'가 사실상 동시에 일어나기 때문입니다. 참여자는 받으면 각자 '받았어요'를 누릅니다.
+- **호스트의 별도 '나눔완료' 버튼은 없습니다.** 참여자는 받으면 각자 '받았어요'를 누릅니다.
 - `distributeAt + 3일`이 지나면 '받았어요'를 안 누른 `WAITING` 참여자를 스케줄러가 자동으로 `RECEIVED` 처리합니다. 문의중(`INQUIRING`)은 제외 [D10]
 
 **Request Body**
@@ -1172,15 +1203,14 @@
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `distributeAt` | datetime | Y | 나눔 예정 일시. 자동 수령 처리 기준 [D10] |
-| `distributePlace` | string | Y | 나눔 장소 |
 
 ```json
-{ "distributeAt": "2026-10-30T19:00:00", "distributePlace": "○○대학교 정문 앞" }
+{ "distributeAt": "2026-10-30T19:00:00" }
 ```
 
-**Response** (보완)
+**Response**
 ```json
-{ "postStatus": "DISTRIBUTED", "distributedAt": "2026-10-29T18:00:00", "autoConfirmAt": "2026-11-02T19:00:00" }
+{ "postStatus": "DISTRIBUTED", "distributedAt": "2026-10-29T18:00:00", "distributePlace": "○○대학교 정문 편의점 앞", "autoConfirmAt": "2026-11-02T19:00:00" }
 ```
 
 **Errors**

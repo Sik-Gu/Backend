@@ -12,7 +12,6 @@ import Sikgu.com.example.Web.domain.participation.enums.PaymentStatus;
 import Sikgu.com.example.Web.domain.participation.repository.ParticipationRepository;
 import Sikgu.com.example.Web.domain.participation.service.TradeStatsReader;
 import Sikgu.com.example.Web.domain.post.dto.request.PostUpdateRequest;
-import Sikgu.com.example.Web.domain.post.dto.request.TradePlaceRequest;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostCancelResponse;
 import Sikgu.com.example.Web.domain.post.entity.Post;
 import Sikgu.com.example.Web.domain.post.enums.Category;
@@ -71,19 +70,19 @@ class PostServiceUpdateCancelTest {
     // ---------- 수정 ----------
 
     @Test
-    void 보낸_값만_바꾸고_이미지와_거래_장소도_바꾼다() {
+    void 보낸_값만_바꾸고_이미지와_검색_색인도_바꾼다() {
         given(postRepository.findByIdForUpdate(3L)).willReturn(Optional.of(post));
 
         postService.update(10L, 3L, new PostUpdateRequest("새 제목", null, null, Category.DAILY, null,
-                List.of("/images/new.jpg"), NOW.plusDays(5),
-                new TradePlaceRequest("후문", "흑석동", 37.5085, 126.9620)));
+                List.of("/images/new.jpg"), NOW.plusDays(5)));
 
         assertThat(post.getTitle()).isEqualTo("새 제목");
         assertThat(post.getProductName()).isEqualTo("커클랜드 생수 2L x 24"); // 안 보낸 값은 그대로
         assertThat(post.getCategory()).isEqualTo(Category.DAILY);
         assertThat(post.imageUrls()).containsExactly("/images/new.jpg");
         assertThat(post.getDeadlineAt()).isEqualTo(NOW.plusDays(5));
-        assertThat(post.getDongName()).isEqualTo("흑석동");
+        assertThat(post.getSearchWords()).contains(" 새 ", " 제목 ");
+        assertThat(post.getTitleChosung()).isEqualTo("ㅅㅈㅁ");
         assertThat(post.getUnitPrice()).isEqualTo(4840); // 가격은 바뀌지 않는다
     }
 
@@ -109,7 +108,7 @@ class PostServiceUpdateCancelTest {
         given(postRepository.findByIdForUpdate(3L)).willReturn(Optional.of(post));
 
         assertThatThrownBy(() -> postService.update(10L, 3L,
-                new PostUpdateRequest(null, null, null, null, null, null, NOW.minusMinutes(1), null)))
+                new PostUpdateRequest(null, null, null, null, null, null, NOW.minusMinutes(1))))
                 .extracting("errorStatus").isEqualTo(ErrorStatus.DEADLINE_PASSED);
     }
 
@@ -163,6 +162,6 @@ class PostServiceUpdateCancelTest {
     }
 
     private static PostUpdateRequest emptyUpdate() {
-        return new PostUpdateRequest(null, null, null, null, null, null, null, null);
+        return new PostUpdateRequest(null, null, null, null, null, null, null);
     }
 }

@@ -15,11 +15,12 @@ import Sikgu.com.example.Web.domain.participation.enums.ParticipationRole;
 import Sikgu.com.example.Web.domain.participation.repository.ParticipationRepository;
 import Sikgu.com.example.Web.domain.participation.service.TradeStatsReader;
 import Sikgu.com.example.Web.domain.post.dto.request.PostCreateRequest;
-import Sikgu.com.example.Web.domain.post.dto.request.TradePlaceRequest;
+import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.ParticipantSummary;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostCreateResponse;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostDetailResponse;
 import Sikgu.com.example.Web.domain.post.entity.Post;
 import Sikgu.com.example.Web.domain.post.enums.Category;
+import Sikgu.com.example.Web.domain.post.enums.DistanceRange;
 import Sikgu.com.example.Web.domain.post.repository.PostRepository;
 import Sikgu.com.example.Web.domain.user.entity.User;
 import Sikgu.com.example.Web.domain.user.repository.UserRepository;
@@ -96,6 +97,25 @@ class PostServiceTest {
         assertThat(captor.getValue().getPost().getFilledUnits()).isEqualTo(2);
         assertThat(captor.getValue().getPost().getParticipantCount()).isEqualTo(1);
         verify(pointClient).validateNoUnpaidDebt(10L);
+
+        // 글에 호스트 집 위치와 검색 색인이 저장된다
+        Post saved = captor.getValue().getPost();
+        assertThat(saved.getHostLatitude()).isEqualTo(host.getLatitude());
+        assertThat(saved.getHostLongitude()).isEqualTo(host.getLongitude());
+        assertThat(saved.getDongName()).isEqualTo(host.getDongName());
+        assertThat(saved.getSearchWords()).contains(" 생수 ", " 커클랜드 ");
+        assertThat(saved.getTitleChosung()).isEqualTo("ㅋㅅㅌㅋㅅㅅㄱㅇㅅㅇ");
+        assertThat(saved.hasDistributionPlace()).isFalse();
+    }
+
+    @Test
+    void 집_위치를_설정하지_않았으면_등록하지_않는다_USER4001() {
+        User noLocation = Fixtures.newUserWithoutLocation("new");
+        given(userRepository.findById(10L)).willReturn(Optional.of(noLocation));
+
+        assertThatThrownBy(() -> postService.create(10L, request(2, 29040, NOW.plusDays(2))))
+                .extracting("errorStatus").isEqualTo(ErrorStatus.LOCATION_REQUIRED);
+        verify(postRepository, never()).save(any());
     }
 
     @Test
@@ -162,7 +182,46 @@ class PostServiceTest {
         assertThat(detail.maxSelectableUnits()).isEqualTo(3);
         assertThat(detail.host().mainCategories()).containsExactly(Category.FOOD);
         assertThat(detail.participants()).hasSize(2);
-        assertThat(detail.distanceKm()).isNotNull();
+        // 좌표·정확한 거리 대신 구간만 (같은 동네라 500m 이내)
+        assertThat(detail.distance()).isEqualTo(DistanceRange.WITHIN_500M);
+        assertThat(detail.distributionPlace()).isNull(); // 아직 장소 제안 전
+    }
+
+    @Test
+    void 상세에_나눔_장소_합의_현황과_참여자별_동의_여부가_나온다() {
+        Post post = Fixtures.post(3L, host, NOW.plusDays(2));
+        post.addParticipant(2);
+        User viewer = Fixtures.user(20L);
+        post.addParticipant(1);
+        post.proposeDistributionPlace("정문 편의점 앞", 37.5010, 127.0370, NOW);
+        Participation hostPa = Participation.host(post, host, 2, NOW);
+        Participation viewerPa = Participation.participant(post, viewer, 1, NOW);
+        given(postRepository.findDetailById(3L)).willReturn(Optional.of(post));
+        given(userRepository.findById(20L)).willReturn(Optional.of(viewer));
+        given(participationRepository.findActiveByPostId(3L)).willReturn(List.of(hostPa, viewerPa));
+        given(tradeStatsReader.mainCategories(List.of(10L, 20L))).willReturn(Map.of());
+
+        PostDetailResponse detail = postService.getDetail(20L, 3L);
+
+        assertThat(detail.distributionPlace().name()).isEqualTo("정문 편의점 앞");
+        assertThat(detail.distributionPlace().agreedCount()).isEqualTo(1); // 호스트만
+        assertThat(detail.distributionPlace().memberCount()).isEqualTo(2);
+        assertThat(detail.distributionPlace().allAgreed()).isFalse();
+        assertThat(detail.distributionPlace().myAgreed()).isFalse();
+        assertThat(detail.participants()).extracting(ParticipantSummary::placeAgreed).containsExactly(true, false);
+    }
+
+    @Test
+    void 먼_곳의_글을_상세로_열면_1km_초과로만_알려준다() {
+        Post post = Fixtures.post(3L, host, NOW.plusDays(2));
+        User farViewer = Fixtures.user(30L);
+        farViewer.changeLocation("먼동", 37.5850, 127.0364); // 약 9km
+        given(postRepository.findDetailById(3L)).willReturn(Optional.of(post));
+        given(userRepository.findById(30L)).willReturn(Optional.of(farViewer));
+        given(participationRepository.findActiveByPostId(3L)).willReturn(List.of());
+        given(tradeStatsReader.mainCategories(List.of())).willReturn(Map.of());
+
+        assertThat(postService.getDetail(30L, 3L).distance()).isEqualTo(DistanceRange.OVER_1KM);
     }
 
     @Test
@@ -190,7 +249,6 @@ class PostServiceTest {
 
     private static PostCreateRequest request(int hostUnits, int totalPrice, LocalDateTime deadlineAt) {
         return new PostCreateRequest("코스트코 생수 같이 사요", "커클랜드 생수", null, Category.FOOD, null,
-                List.of("/images/post/a.jpg"), "2L 생수 4병", 6, totalPrice, hostUnits, deadlineAt,
-                new TradePlaceRequest("정문 앞", "역삼동", 37.5012, 127.0396));
+                List.of("/images/post/a.jpg"), "2L 생수 4병", 6, totalPrice, hostUnits, deadlineAt);
     }
 }

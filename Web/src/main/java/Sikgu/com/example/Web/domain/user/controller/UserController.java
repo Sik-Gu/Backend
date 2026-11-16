@@ -42,7 +42,7 @@ public class UserController {
         return ApiResponse.onSuccess(userQueryService.getMe(authUser.userId()));
     }
 
-    /** 동네 변경 (로그인 필요) */
+    /** 집 위치(GPS) 설정·변경. 가입 직후 한 번 설정해야 공구 목록·등록을 쓸 수 있다 */
     @PatchMapping("/me/location")
     public ApiResponse<LocationResponse> changeLocation(@AuthenticationPrincipal AuthUser authUser,
                                                         @RequestBody @Valid LocationRequest request) {

@@ -48,7 +48,7 @@ class ReceiptInquiryRepositoryTest {
         assertThat(all).hasSize(2);
         assertThat(mine).hasSize(1);
         assertThat(mine.get(0).getImageUrls()).containsExactly("/i1.jpg", "/i2.jpg");
-        assertThat(mine.get(0).getParticipation().getUser().getLoginId()).isEqualTo("aaaa");
+        assertThat(mine.get(0).getParticipation().getUser().getSchoolEmail()).isEqualTo("aaaa@korea.ac.kr");
     }
 
     private User persist(User user) {

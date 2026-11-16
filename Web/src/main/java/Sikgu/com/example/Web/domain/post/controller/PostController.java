@@ -41,13 +41,17 @@ public class PostController {
     private final PostService postService;
     private final PostQueryService postQueryService;
 
-    /** 공구 목록·검색·카테고리·거리·정렬 */
+    /**
+     * 공구 목록·검색·카테고리·거리·정렬.
+     * radius: 내 집 ↔ 글 올린 사람의 집 거리 500 또는 1000(m).
+     * keyword: 정확한 단어(제목·상품명) 또는 초성(제목)만.
+     */
     @GetMapping
     public ApiResponse<PageResponse<PostCard>> search(
             @AuthenticationPrincipal AuthUser authUser,
             @RequestParam(required = false) @Size(max = 50, message = "검색어는 50자 이하입니다.") String keyword,
             @RequestParam(required = false) Category category,
-            @RequestParam(defaultValue = "3") int radius,
+            @RequestParam(defaultValue = "1000") int radius,
             @RequestParam(defaultValue = "true") boolean recruitingOnly,
             @RequestParam(defaultValue = "LATEST") PostSort sort,
             @RequestParam(defaultValue = "0") @Min(value = 0, message = "page는 0 이상입니다.") int page,

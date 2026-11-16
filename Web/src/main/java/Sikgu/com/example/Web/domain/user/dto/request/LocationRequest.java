@@ -7,8 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * 동네 정보. 동 이름 검색이든 GPS든 같은 형식으로 받는다 (docs/DB.md D14).
- * 회원가입, 동네 변경에서 같이 쓴다.
+ * 집 위치. 프론트가 기기 GPS로 위경도를 구하고, 카카오맵 SDK로 동 이름을 구해서 보낸다.
+ * PATCH /api/users/me/location 에서 쓴다.
  */
 public record LocationRequest(
         @NotBlank(message = "동 이름은 필수입니다.")

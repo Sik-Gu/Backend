@@ -45,16 +45,13 @@ public class PostOrder {
     @Column(length = 30)
     private String trackingNumber;
 
-    /** 영수증 금액 */
-    @Column(nullable = false)
-    private int receiptAmount;
-
     @Column(nullable = false)
     private LocalDateTime registeredAt;
 
     /** 나눔 예정 일시. + 3일이 지나면 자동 수령 처리 (D10) */
     private LocalDateTime distributeAt;
 
+    /** 주문 전에 참여자 전원이 합의한 나눔 장소 (게시글에서 복사) */
     @Column(length = 100)
     private String distributePlace;
 
@@ -62,10 +59,10 @@ public class PostOrder {
     @OrderBy("id ASC")
     private List<ReceiptImage> receiptImages = new ArrayList<>();
 
-    public static PostOrder register(Post post, int receiptAmount, List<String> receiptImageUrls, LocalDateTime now) {
+    /** 영수증 사진 등록. 금액은 받지 않는다 (차액 정산 없음, 게시글 가격 기준) */
+    public static PostOrder register(Post post, List<String> receiptImageUrls, LocalDateTime now) {
         PostOrder order = new PostOrder();
         order.post = post;
-        order.receiptAmount = receiptAmount;
         order.registeredAt = now;
         receiptImageUrls.forEach(url -> order.receiptImages.add(ReceiptImage.of(order, url)));
         return order;

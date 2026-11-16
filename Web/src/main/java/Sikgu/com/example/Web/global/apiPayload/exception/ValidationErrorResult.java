@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * COMMON400 응답의 result. 어떤 필드가 왜 틀렸는지 담는다.
- * <pre>{ "errors": [ { "field": "loginId", "reason": "..." } ] }</pre>
+ * <pre>{ "errors": [ { "field": "email", "reason": "..." } ] }</pre>
  */
 public record ValidationErrorResult(List<FieldErrorDetail> errors) {
 

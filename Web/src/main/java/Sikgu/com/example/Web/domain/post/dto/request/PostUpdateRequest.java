@@ -1,7 +1,6 @@
 package Sikgu.com.example.Web.domain.post.dto.request;
 
 import Sikgu.com.example.Web.domain.post.enums.Category;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -33,10 +32,6 @@ public record PostUpdateRequest(
         @Size(max = 10, message = "이미지는 10개까지 넣을 수 있습니다.")
         List<@NotBlank(message = "이미지 URL이 비었습니다.") @Size(max = 500) String> imageUrls,
 
-        LocalDateTime deadlineAt,
-
-        /** 바꿀 때는 name·dongName·latitude·longitude를 모두 보낸다 */
-        @Valid
-        TradePlaceRequest tradePlace
+        LocalDateTime deadlineAt
 ) {
 }

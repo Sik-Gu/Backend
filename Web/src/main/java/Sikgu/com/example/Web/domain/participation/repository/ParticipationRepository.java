@@ -1,6 +1,7 @@
 package Sikgu.com.example.Web.domain.participation.repository;
 
 import Sikgu.com.example.Web.domain.participation.entity.Participation;
+import Sikgu.com.example.Web.domain.participation.enums.PaymentStatus;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +23,9 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
                           then 0 else 1 end, pa.joinedAt
             """)
     List<Participation> findActiveByPostId(@Param("postId") Long postId);
+
+    /** 이 공구에서 나눔 장소에 동의(또는 아직 미동의)한 참여 수. placeAgreed=false로 미동의 인원을 센다 */
+    long countByPostIdAndPaymentStatusAndPlaceAgreed(Long postId, PaymentStatus paymentStatus, boolean placeAgreed);
 
     /**
      * 내 공구함 대상: 참여 중인 공구 + 취소된 공구(호스트 취소로 환급된 것).

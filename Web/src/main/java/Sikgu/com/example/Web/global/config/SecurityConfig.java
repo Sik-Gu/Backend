@@ -30,7 +30,6 @@ public class SecurityConfig {
     private static final String[] PUBLIC_URLS = {
             "/api/auth/email/send",
             "/api/auth/email/verify",
-            "/api/auth/check-id",
             "/api/auth/signup",
             "/api/auth/login",
             "/api/auth/reissue",

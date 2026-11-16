@@ -22,7 +22,6 @@ public final class UserResponses {
     /** GET /api/users/me */
     public record MeResponse(
             Long userId,
-            String loginId,
             String nickname,
             String email,
             String universityName,

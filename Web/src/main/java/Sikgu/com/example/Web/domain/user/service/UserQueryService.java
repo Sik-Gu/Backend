@@ -7,6 +7,7 @@ import Sikgu.com.example.Web.domain.participation.enums.ReceiptStatus;
 import Sikgu.com.example.Web.domain.participation.repository.ParticipationRepository;
 import Sikgu.com.example.Web.domain.participation.service.TradeStatsReader;
 import Sikgu.com.example.Web.domain.post.entity.Post;
+import Sikgu.com.example.Web.domain.post.enums.DistanceRange;
 import Sikgu.com.example.Web.domain.post.enums.PostStatus;
 import Sikgu.com.example.Web.domain.post.service.PostQueryService;
 import Sikgu.com.example.Web.domain.review.entity.Review;
@@ -70,7 +71,7 @@ public class UserQueryService {
 
         int ongoing = (int) items.stream().filter(item -> !item.post().getStatus().isDone()).count();
         int actionRequired = (int) items.stream().filter(item -> item.action() != null).count();
-        return new MeResponse(user.getId(), user.getLoginId(), user.getNickname(), user.getSchoolEmail(),
+        return new MeResponse(user.getId(), user.getNickname(), user.getSchoolEmail(),
                 user.getUniversityName(),
                 new LocationResponse(user.getDongName(), user.getLatitude(), user.getLongitude()),
                 user.getCreatedAt() == null ? null : user.getCreatedAt().toLocalDate(),
@@ -155,7 +156,13 @@ public class UserQueryService {
         if (mine.isHost()) {
             switch (post.getStatus()) {
                 case RECRUITED -> {
-                    return ActionRequired.ORDER;
+                    if (!post.hasDistributionPlace()) {
+                        return ActionRequired.PROPOSE_PLACE;
+                    }
+                    // 아직 동의하지 않은 참여자가 있으면 기다린다
+                    boolean allAgreed = participationRepository.countByPostIdAndPaymentStatusAndPlaceAgreed(
+                            post.getId(), PaymentStatus.PAID, false) == 0;
+                    return allAgreed ? ActionRequired.ORDER : null;
                 }
                 case ORDERED -> {
                     return ActionRequired.SHIP;
@@ -166,6 +173,9 @@ public class UserQueryService {
                 default -> {
                 }
             }
+        } else if ((post.getStatus() == PostStatus.RECRUITING || post.getStatus() == PostStatus.RECRUITED)
+                && post.hasDistributionPlace() && !mine.isPlaceAgreed()) {
+            return ActionRequired.AGREE_PLACE;
         } else if (post.getStatus() == PostStatus.DISTRIBUTED
                 && mine.getReceiptStatus() == ReceiptStatus.WAITING) {
             return ActionRequired.CONFIRM_RECEIPT;
@@ -191,8 +201,8 @@ public class UserQueryService {
 
     private static MyPostCard toCard(User user, MyPostItem item) {
         Post post = item.post();
-        Double distance = GeoUtils.distanceKm(user.getLatitude(), user.getLongitude(),
-                post.getTradeLatitude(), post.getTradeLongitude());
+        DistanceRange distance = DistanceRange.of(GeoUtils.distanceMeters(user.getLatitude(), user.getLongitude(),
+                post.getHostLatitude(), post.getHostLongitude()));
         return new MyPostCard(PostQueryService.toCard(post, distance), item.mine().getRole(),
                 item.mine().getUnits(), item.action(), item.reviewProgress());
     }

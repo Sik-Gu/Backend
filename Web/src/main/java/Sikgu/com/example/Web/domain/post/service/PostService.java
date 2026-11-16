@@ -5,7 +5,7 @@ import Sikgu.com.example.Web.domain.participation.repository.ParticipationReposi
 import Sikgu.com.example.Web.domain.participation.service.TradeStatsReader;
 import Sikgu.com.example.Web.domain.post.dto.request.PostCreateRequest;
 import Sikgu.com.example.Web.domain.post.dto.request.PostUpdateRequest;
-import Sikgu.com.example.Web.domain.post.dto.request.TradePlaceRequest;
+import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.DistributionPlaceInfo;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.HostSummary;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.MyParticipation;
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.ParticipantSummary;
@@ -16,6 +16,7 @@ import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.PostIdRespon
 import Sikgu.com.example.Web.domain.post.dto.response.PostResponses.StatusTimeline;
 import Sikgu.com.example.Web.domain.post.entity.Post;
 import Sikgu.com.example.Web.domain.post.enums.Category;
+import Sikgu.com.example.Web.domain.post.enums.DistanceRange;
 import Sikgu.com.example.Web.domain.post.enums.PostStatus;
 import Sikgu.com.example.Web.domain.post.repository.PostRepository;
 import Sikgu.com.example.Web.domain.user.entity.User;
@@ -62,11 +63,13 @@ public class PostService {
 
         User host = userRepository.findById(hostId)
                 .orElseThrow(() -> new GeneralException(ErrorStatus.USER_NOT_FOUND));
-        TradePlaceRequest place = request.tradePlace();
+        if (!host.hasLocation()) {
+            // 글에 호스트 집 위치를 저장해야 거리 필터가 동작한다
+            throw new GeneralException(ErrorStatus.LOCATION_REQUIRED);
+        }
         Post post = Post.create(host, request.title(), request.content(), request.productName(),
                 request.productLink(), request.category(), request.baseUnit(), request.totalUnits(),
-                request.totalPrice(), request.deadlineAt(), place.name(), place.dongName(),
-                place.latitude(), place.longitude());
+                request.totalPrice(), request.deadlineAt());
         post.replaceImages(request.imageUrls());
         postRepository.save(post);
 
@@ -106,15 +109,17 @@ public class PostService {
                 post.getContent(), post.imageUrls(), post.getBaseUnit(), post.getTotalUnits(),
                 post.getFilledUnits(), post.getParticipantCount(), post.getUnitPrice(), post.getTotalPrice(),
                 post.getStatus(), timeline(post), post.getDongName(),
-                GeoUtils.distanceKm(viewer.getLatitude(), viewer.getLongitude(),
-                        post.getTradeLatitude(), post.getTradeLongitude()),
-                post.getTradePlaceName(), post.getDeadlineAt(), post.getViewCount() + 1, post.getCreatedAt(),
+                // 좌표·정확한 거리는 내려주지 않고 구간만
+                DistanceRange.of(GeoUtils.distanceMeters(viewer.getLatitude(), viewer.getLongitude(),
+                        post.getHostLatitude(), post.getHostLongitude())),
+                distributionPlace(post, participations, mine), post.getDeadlineAt(), post.getViewCount() + 1,
+                post.getCreatedAt(),
                 new HostSummary(host.getId(), host.getNickname(), host.ratingValue(), host.getTradeCount(),
                         mainCategories.getOrDefault(host.getId(), List.of())),
                 participations.stream().map(pa -> new ParticipantSummary(
                         pa.getUser().getId(), pa.getUser().getNickname(), pa.getRole(), pa.getUnits(),
                         pa.getUser().ratingValue(), pa.getUser().getTradeCount(),
-                        mainCategories.getOrDefault(pa.getUser().getId(), List.of()))).toList(),
+                        mainCategories.getOrDefault(pa.getUser().getId(), List.of()), pa.isPlaceAgreed())).toList(),
                 mine == null ? null : new MyParticipation(mine.getRole(), mine.getUnits(),
                         mine.getPaymentStatus(), mine.getReceiptStatus()),
                 post.getStatus() == PostStatus.RECRUITING ? post.remainingUnits() : 0,
@@ -141,10 +146,6 @@ public class PostService {
                 request.content(), request.deadlineAt());
         if (request.imageUrls() != null) {
             post.replaceImages(request.imageUrls());
-        }
-        TradePlaceRequest place = request.tradePlace();
-        if (place != null) {
-            post.changeTradePlace(place.name(), place.dongName(), place.latitude(), place.longitude());
         }
         return new PostIdResponse(post.getId());
     }
@@ -193,6 +194,19 @@ public class PostService {
             // 나머지 처리 방식이 정해지지 않아서 일단 거부 (가정)
             throw new GeneralException(ErrorStatus.INDIVISIBLE_PRICE);
         }
+    }
+
+    /** 나눔 장소 합의 현황. 제안 전이면 null. participations는 참여 중인 사람 전원 (호스트 포함) */
+    public static DistributionPlaceInfo distributionPlace(Post post, List<Participation> participations,
+                                                   Participation mine) {
+        if (!post.hasDistributionPlace()) {
+            return null;
+        }
+        int agreed = (int) participations.stream().filter(Participation::isPlaceAgreed).count();
+        return new DistributionPlaceInfo(post.getDistributionPlaceName(), post.getDistributionPlaceLatitude(),
+                post.getDistributionPlaceLongitude(), post.getDistributionPlaceProposedAt(), agreed,
+                participations.size(), agreed == participations.size(),
+                mine == null ? null : mine.isPlaceAgreed());
     }
 
     static StatusTimeline timeline(Post post) {

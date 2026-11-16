@@ -13,10 +13,6 @@ public final class AuthResponses {
     public record EmailVerifyResponse(String verificationToken, long expiresInSec) {
     }
 
-    /** GET /api/auth/check-id */
-    public record CheckIdResponse(String loginId, boolean available) {
-    }
-
     /** POST /api/auth/signup */
     public record SignupResponse(Long userId, String nickname) {
     }

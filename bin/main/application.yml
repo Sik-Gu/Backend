@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: ${DB_URL}            # 예: jdbc:postgresql://localhost:5432/sikgu
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update        # 엔티티를 보고 테이블을 알아서 만들어줌 (개발 중에만)
+    show-sql: true            # 실행되는 SQL을 콘솔에 보여줌
+
+jwt:
+  secret: ${JWT_SECRET}                          # 서명용 비밀키, 32자 이상
+  access-expiration: ${JWT_ACCESS_EXPIRATION:3600}  # 토큰 유효시간(초). 없으면 3600 = 1시간

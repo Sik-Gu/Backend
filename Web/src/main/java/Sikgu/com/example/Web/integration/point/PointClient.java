@@ -30,13 +30,6 @@ public interface PointClient {
     RefundResult refund(Long userId, Long postId, Long participationId);
 
     /**
-     * 영수증 차액 정산 (D9).
-     *
-     * @param amount 양수면 추가 청구(ADJUSTMENT_CHARGE, 잔액이 모자라면 미수금 생성), 음수면 환급(ADJUSTMENT_REFUND)
-     */
-    AdjustmentResult adjust(Long userId, Long postId, Long participationId, long amount);
-
-    /**
      * 공구 정산: 이 공구의 보류를 모두 확정(CAPTURED)하고 호스트에게 지급한다 (SETTLEMENT).
      * 미수금이 있는 참여자 몫은 납부될 때 호스트에게 추가 지급한다 (D9). 인센티브는 없다 (D11).
      */
@@ -52,14 +45,6 @@ public interface PointClient {
     }
 
     record RefundResult(long refundedPoint, long balanceAfter) {
-    }
-
-    /**
-     * @param amount        청구(+) 또는 환급(-)한 금액
-     * @param chargedAmount 실제로 지갑에서 빠진 금액 (청구일 때)
-     * @param debtAmount    잔액 부족으로 미수금이 된 금액 (청구일 때)
-     */
-    record AdjustmentResult(long amount, long chargedAmount, long debtAmount) {
     }
 
     record PointSummary(long availableBalance, long heldAmount, long unpaidDebt) {

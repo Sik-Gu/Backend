@@ -31,7 +31,7 @@ public class OrderController {
 
     private final OrderService orderService;
 
-    /** 영수증 등록 + 주문완료 + 차액 정산 (호스트) */
+    /** 영수증 사진 등록 + 주문완료 (호스트). 전원 나눔 장소 동의 필요 */
     @PostMapping
     public ApiResponse<OrderRegisterResponse> register(@AuthenticationPrincipal AuthUser authUser,
                                                        @PathVariable Long postId,
@@ -39,7 +39,7 @@ public class OrderController {
         return ApiResponse.onSuccess(orderService.register(authUser.userId(), postId, request));
     }
 
-    /** 주문 정보·영수증·차액 조회 (호스트·참여자) */
+    /** 주문 정보·영수증 조회 (호스트·참여자) */
     @GetMapping
     public ApiResponse<OrderDetailResponse> get(@AuthenticationPrincipal AuthUser authUser,
                                                 @PathVariable Long postId) {
@@ -53,7 +53,7 @@ public class OrderController {
         return ApiResponse.onSuccess(orderService.ship(authUser.userId(), postId, request));
     }
 
-    /** 나눔 일정·장소 입력 → 나눔 진행 (호스트, D6) */
+    /** 나눔 일시 입력 → 나눔 진행 (호스트, D6). 장소는 합의한 곳 */
     @PatchMapping("/distribution")
     public ApiResponse<DistributionResponse> scheduleDistribution(@AuthenticationPrincipal AuthUser authUser,
                                                                   @PathVariable Long postId,

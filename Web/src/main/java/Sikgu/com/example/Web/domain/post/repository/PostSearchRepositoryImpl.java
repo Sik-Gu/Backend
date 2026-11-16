@@ -2,6 +2,7 @@ package Sikgu.com.example.Web.domain.post.repository;
 
 import Sikgu.com.example.Web.domain.post.enums.PostSort;
 import Sikgu.com.example.Web.domain.post.enums.PostStatus;
+import Sikgu.com.example.Web.domain.post.search.PostSearchKeyword;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
@@ -15,15 +16,16 @@ import org.springframework.data.domain.PageRequest;
 /**
  * 공구 목록 검색 구현.
  *
- * <p>거리는 Haversine 공식으로 DB에서 계산한다. 표준 SQL 함수만 써서 PostgreSQL·H2(테스트) 모두에서 동작한다.
+ * <p>거리는 조회하는 사람의 집 ↔ 글에 저장된 호스트 집 위치 사이를 Haversine 공식으로 DB에서 계산한다(m).
+ * 검색어는 정확한 단어(단어 색인) 또는 제목 초성만 허용한다 ({@link PostSearchKeyword}). 표준 SQL 함수만 써서 PostgreSQL·H2(테스트) 모두에서 동작한다.
  * 조건은 값이 있을 때만 붙이고, 모든 값은 파라미터로 바인딩한다. ORDER BY는 정해진 문자열 중에서만 고른다.
  */
 public class PostSearchRepositoryImpl implements PostSearchRepository {
 
     private static final String DISTANCE = """
-            6371 * ACOS(LEAST(1.0, GREATEST(-1.0,
-                COS(RADIANS(:lat)) * COS(RADIANS(p.trade_latitude)) * COS(RADIANS(p.trade_longitude) - RADIANS(:lng))
-                + SIN(RADIANS(:lat)) * SIN(RADIANS(p.trade_latitude)))))""";
+            6371000 * ACOS(LEAST(1.0, GREATEST(-1.0,
+                COS(RADIANS(:lat)) * COS(RADIANS(p.host_latitude)) * COS(RADIANS(p.host_longitude) - RADIANS(:lng))
+                + SIN(RADIANS(:lat)) * SIN(RADIANS(p.host_latitude)))))""";
 
     @PersistenceContext
     private EntityManager em;
@@ -37,7 +39,7 @@ public class PostSearchRepositoryImpl implements PostSearchRepository {
                 + " WHERE t.distance <= :radius ORDER BY " + orderBy(c) + " LIMIT :limit OFFSET :offset");
         Query count = em.createNativeQuery("SELECT COUNT(*) FROM (" + inner + ") t WHERE t.distance <= :radius");
 
-        params.put("radius", (double) c.radiusKm());
+        params.put("radius", (double) c.radiusMeters());
         params.forEach((name, value) -> {
             select.setParameter(name, value);
             count.setParameter(name, value);
@@ -73,10 +75,7 @@ public class PostSearchRepositoryImpl implements PostSearchRepository {
             sql.append(" AND p.category = :category");
             params.put("category", c.category().name());
         }
-        if (c.keyword() != null) {
-            sql.append(" AND (LOWER(p.title) LIKE :keyword ESCAPE '!' OR LOWER(p.product_name) LIKE :keyword ESCAPE '!')");
-            params.put("keyword", "%" + escapeLike(c.keyword().toLowerCase()) + "%");
-        }
+        appendKeyword(sql, params, c.keyword());
         if (c.sort() == PostSort.DEADLINE) {
             // 마감 임박순은 마감이 지나지 않은 글만
             sql.append(" AND p.deadline_at > :now");
@@ -87,6 +86,30 @@ public class PostSearchRepositoryImpl implements PostSearchRepository {
                 .append(" AND p.host_id NOT IN (SELECT b.blocker_id FROM blocks b WHERE b.blocked_id = :viewerId)");
         params.put("viewerId", c.viewerId());
         return sql.toString();
+    }
+
+    /**
+     * 검색어 조건.
+     * <ul>
+     *   <li>정확한 단어: 단어 색인(" 생수 2l 공구 ")에 " 단어 "가 있어야 한다. 단어가 여럿이면 모두(AND)</li>
+     *   <li>초성: 제목 초성(공백 제거)에 검색 초성이 들어 있어야 한다</li>
+     * </ul>
+     */
+    private static void appendKeyword(StringBuilder sql, Map<String, Object> params, PostSearchKeyword.Parsed keyword) {
+        if (keyword == null) {
+            return;
+        }
+        if (keyword.mode() == PostSearchKeyword.Mode.CHOSUNG) {
+            sql.append(" AND p.title_chosung LIKE :chosung ESCAPE '!'");
+            params.put("chosung", "%" + escapeLike(keyword.chosung()) + "%");
+            return;
+        }
+        String d = PostSearchKeyword.WORD_DELIMITER;
+        for (int i = 0; i < keyword.words().size(); i++) {
+            String name = "word" + i;
+            sql.append(" AND p.search_words LIKE :").append(name).append(" ESCAPE '!'");
+            params.put(name, "%" + d + escapeLike(keyword.words().get(i)) + d + "%");
+        }
     }
 
     private static String orderBy(PostSearchCondition c) {

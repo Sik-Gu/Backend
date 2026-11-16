@@ -31,9 +31,6 @@ public class User {
     @Column(name = "user_id")
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 20)
-    private String loginId;
-
     @Column(nullable = false, unique = true, length = 100)
     private String schoolEmail;
 
@@ -47,7 +44,10 @@ public class User {
     @Column(length = 50)
     private String universityName;
 
-    /** 동 이름 + 위경도. 다른 사용자에게는 동 이름만 노출 (D14) */
+    /**
+     * 집 위치 (GPS 위경도 + 동 이름). 가입 후 따로 설정하며, 설정 전에는 null.
+     * 좌표는 본인에게만 보여주고, 다른 사용자에게는 동 이름만 노출한다 (D14).
+     */
     @Column(length = 30)
     private String dongName;
 
@@ -81,16 +81,12 @@ public class User {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    public static User create(String loginId, String schoolEmail, String passwordHash, String nickname,
-                              String dongName, Double latitude, Double longitude) {
+    /** 회원가입. 집 위치는 비워 두고, 가입 후 {@link #changeLocation}으로 설정한다 */
+    public static User create(String schoolEmail, String passwordHash, String nickname) {
         User user = new User();
-        user.loginId = loginId;
         user.schoolEmail = schoolEmail;
         user.passwordHash = passwordHash;
         user.nickname = nickname;
-        user.dongName = dongName;
-        user.latitude = latitude;
-        user.longitude = longitude;
         user.tradeCount = 0;
         user.role = UserRole.USER;
         user.status = UserStatus.ACTIVE;
@@ -113,11 +109,15 @@ public class User {
         this.tradeCount++;
     }
 
-    /** 동네 변경. 이미 등록한 게시글의 거래 장소는 바뀌지 않는다. */
+    /** 집 위치 설정·변경. 이미 올린 게시글에 저장된 위치는 바뀌지 않는다. */
     public void changeLocation(String dongName, Double latitude, Double longitude) {
         this.dongName = dongName;
         this.latitude = latitude;
         this.longitude = longitude;
+    }
+
+    public boolean hasLocation() {
+        return latitude != null && longitude != null;
     }
 
     /** 지금 정지 상태인지. suspendedUntil이 없으면 무기한 정지로 본다 (정지 기간 정책은 미정, D9) */

@@ -8,6 +8,7 @@ import Sikgu.com.example.Web.domain.post.enums.Category;
 import Sikgu.com.example.Web.domain.post.enums.PostSort;
 import Sikgu.com.example.Web.domain.post.enums.PostStatus;
 import Sikgu.com.example.Web.domain.post.repository.PostSearchRepository.PostSearchRow;
+import Sikgu.com.example.Web.domain.post.search.PostSearchKeyword;
 import Sikgu.com.example.Web.domain.user.entity.User;
 import Sikgu.com.example.Web.support.Fixtures;
 import jakarta.persistence.EntityManager;
@@ -20,8 +21,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
- * 거리 계산 네이티브 쿼리를 H2(메모리 DB)로 실제 실행해서 확인한다.
- * 기준 위치: 역삼동(37.5006, 127.0364)
+ * 거리·검색 네이티브 쿼리를 H2(메모리 DB)로 실제 실행해서 확인한다.
+ * 기준 위치(조회하는 사람의 집): 역삼동(37.5006, 127.0364). 거리는 글에 저장된 호스트 집 위치까지.
  */
 @DataJpaTest
 class PostSearchRepositoryTest {
@@ -45,32 +46,57 @@ class PostSearchRepositoryTest {
     }
 
     @Test
-    void 반경_안의_글만_가깝게_계산한_거리와_함께_돌려준다() {
+    void 글_올린_사람의_집이_반경_안에_있는_글만_돌려준다() {
         Post near = save("가까운 생수", 37.5012, 127.0396, 5000, NOW.plusDays(1));   // 약 0.3km
-        Post mid = save("2km 생수", 37.5180, 127.0364, 5000, NOW.plusDays(1));      // 약 1.9km
-        save("먼 생수", 37.5850, 127.0364, 5000, NOW.plusDays(1));                  // 약 9.4km
+        Post mid = save("800m 생수", 37.5078, 127.0364, 5000, NOW.plusDays(1));     // 약 0.8km
+        save("먼 생수", 37.5180, 127.0364, 5000, NOW.plusDays(1));                  // 약 1.9km
 
-        Page<PostSearchRow> within1 = search(null, null, 1, true, PostSort.LATEST);
-        Page<PostSearchRow> within3 = search(null, null, 3, true, PostSort.LATEST);
+        Page<PostSearchRow> within500 = search(null, null, 500, true, PostSort.LATEST);
+        Page<PostSearchRow> within1000 = search(null, null, 1000, true, PostSort.LATEST);
 
-        assertThat(within1.getContent()).extracting(PostSearchRow::postId).containsExactly(near.getId());
-        assertThat(within1.getContent().get(0).distanceKm()).isBetween(0.2, 0.4);
-        assertThat(within3.getContent()).extracting(PostSearchRow::postId)
+        assertThat(within500.getContent()).extracting(PostSearchRow::postId).containsExactly(near.getId());
+        assertThat(within500.getContent().get(0).distanceMeters()).isBetween(200.0, 400.0);
+        assertThat(within1000.getContent()).extracting(PostSearchRow::postId)
                 .containsExactlyInAnyOrder(near.getId(), mid.getId());
-        assertThat(within3.getTotalElements()).isEqualTo(2);
+        assertThat(within1000.getTotalElements()).isEqualTo(2);
     }
 
     @Test
-    void 제목이나_상품명에_검색어가_있는_글만_대소문자_무시하고_찾는다() {
-        Post water = save("WATER 공구", 37.5012, 127.0396, 5000, NOW.plusDays(1));
-        save("휴지 공구", 37.5012, 127.0396, 5000, NOW.plusDays(1));
+    void 호스트가_나중에_집을_옮겨도_글에_저장된_위치로_거른다() {
+        Post post = save("가까운 생수", 37.5012, 127.0396, 5000, NOW.plusDays(1));
+        host.changeLocation("먼동", 37.5850, 127.0364); // 약 9km 떨어진 곳으로 이사
+        em.flush();
 
-        assertThat(search("water", null, 3, true, PostSort.LATEST).getContent())
-                .extracting(PostSearchRow::postId).containsExactly(water.getId());
-        // 상품명(커클랜드 생수)으로도 찾는다
-        assertThat(search("커클랜드", null, 3, true, PostSort.LATEST).getTotalElements()).isEqualTo(2);
-        // % 는 글자 그대로 찾는다
-        assertThat(search("%", null, 3, true, PostSort.LATEST).getTotalElements()).isZero();
+        assertThat(search(null, null, 500, true, PostSort.LATEST).getContent())
+                .extracting(PostSearchRow::postId).containsExactly(post.getId());
+    }
+
+    @Test
+    void 정확한_단어만_찾고_부분_일치는_찾지_않는다() {
+        Post water = save("WATER 공구", 37.5012, 127.0396, 5000, NOW.plusDays(1));
+        Post tissue = save("휴지 공구", 37.5012, 127.0396, 5000, NOW.plusDays(1));
+
+        // 대소문자 무시
+        assertThat(ids(search(word("water")))).containsExactly(water.getId());
+        // 부분 일치는 안 된다
+        assertThat(search(word("wat")).getTotalElements()).isZero();
+        assertThat(search(word("커클")).getTotalElements()).isZero();
+        // 상품명(커클랜드 생수)의 단어로도 찾는다
+        assertThat(search(word("생수")).getTotalElements()).isEqualTo(2);
+        // 단어가 여럿이면 모두 있어야 한다
+        assertThat(ids(search(word("휴지 공구")))).containsExactly(tissue.getId());
+    }
+
+    @Test
+    void 초성은_제목에서_띄어쓰기_없이_찾는다() {
+        Post tissue = save("휴지 공구해요", 37.5012, 127.0396, 5000, NOW.plusDays(1));
+        save("생수 나눠요", 37.5012, 127.0396, 5000, NOW.plusDays(1));
+
+        assertThat(ids(search(word("ㅎㅈ")))).containsExactly(tissue.getId());
+        assertThat(ids(search(word("ㅎㅈㄱㄱ")))).containsExactly(tissue.getId());
+        assertThat(ids(search(word("ㅎㅈ ㄱㄱ")))).containsExactly(tissue.getId());
+        // 초성은 상품명(커클랜드 생수)에는 걸지 않는다
+        assertThat(search(word("ㅋㅋㄹㄷ")).getTotalElements()).isZero();
     }
 
     @Test
@@ -79,17 +105,17 @@ class PostSearchRepositoryTest {
         setStatus(save("주문완료", 37.5012, 127.0396, 5000, NOW.plusDays(1)), PostStatus.ORDERED);
         setStatus(save("취소", 37.5012, 127.0396, 5000, NOW.plusDays(1)), PostStatus.CANCELLED);
 
-        assertThat(search(null, null, 3, true, PostSort.LATEST).getTotalElements()).isEqualTo(1);
+        assertThat(search(null, null, 1000, true, PostSort.LATEST).getTotalElements()).isEqualTo(1);
         // 전체 보기는 취소만 뺀다
-        assertThat(search(null, null, 3, false, PostSort.LATEST).getTotalElements()).isEqualTo(2);
+        assertThat(search(null, null, 1000, false, PostSort.LATEST).getTotalElements()).isEqualTo(2);
     }
 
     @Test
     void 카테고리로_거른다() {
         save("식품", 37.5012, 127.0396, 5000, NOW.plusDays(1));
 
-        assertThat(search(null, Category.FOOD, 3, true, PostSort.LATEST).getTotalElements()).isEqualTo(1);
-        assertThat(search(null, Category.LIVING, 3, true, PostSort.LATEST).getTotalElements()).isZero();
+        assertThat(search(null, Category.FOOD, 1000, true, PostSort.LATEST).getTotalElements()).isEqualTo(1);
+        assertThat(search(null, Category.LIVING, 1000, true, PostSort.LATEST).getTotalElements()).isZero();
     }
 
     @Test
@@ -98,9 +124,9 @@ class PostSearchRepositoryTest {
         Post later = save("나중 마감", 37.5012, 127.0396, 3000, NOW.plusDays(3));
         save("마감 지남", 37.5012, 127.0396, 1200, NOW.minusHours(1));
 
-        assertThat(search(null, null, 3, true, PostSort.DEADLINE).getContent())
+        assertThat(search(null, null, 1000, true, PostSort.DEADLINE).getContent())
                 .extracting(PostSearchRow::postId).containsExactly(soon.getId(), later.getId());
-        assertThat(search(null, null, 3, true, PostSort.PRICE).getContent().get(0).postId())
+        assertThat(search(null, null, 1000, true, PostSort.PRICE).getContent().get(0).postId())
                 .isNotEqualTo(soon.getId());
     }
 
@@ -111,7 +137,7 @@ class PostSearchRepositoryTest {
         ReflectionTestUtils.setField(popular, "viewCount", 10);
         em.flush();
 
-        assertThat(search(null, null, 3, true, PostSort.POPULAR).getContent().get(0).postId())
+        assertThat(search(null, null, 1000, true, PostSort.POPULAR).getContent().get(0).postId())
                 .isEqualTo(popular.getId());
     }
 
@@ -126,7 +152,7 @@ class PostSearchRepositoryTest {
         em.persist(Block.of(blockerHost, viewer)); // 나를 차단
         em.flush();
 
-        assertThat(search(null, null, 3, true, PostSort.LATEST).getContent())
+        assertThat(search(null, null, 1000, true, PostSort.LATEST).getContent())
                 .extracting(PostSearchRow::postId).containsExactly(visible.getId());
     }
 
@@ -137,30 +163,46 @@ class PostSearchRepositoryTest {
         }
 
         Page<PostSearchRow> second = postRepository.search(new PostSearchCondition(viewer.getId(), LAT, LNG,
-                null, null, 3, true, PostSort.LATEST, NOW, 1, 2));
+                null, null, 1000, true, PostSort.LATEST, NOW, 1, 2));
 
         assertThat(second.getContent()).hasSize(2);
         assertThat(second.getTotalElements()).isEqualTo(5);
         assertThat(second.hasNext()).isTrue();
     }
 
-    private Page<PostSearchRow> search(String keyword, Category category, int radius, boolean recruitingOnly,
-                                       PostSort sort) {
+    private Page<PostSearchRow> search(PostSearchKeyword.Parsed keyword, Category category, int radius,
+                                       boolean recruitingOnly, PostSort sort) {
         return postRepository.search(new PostSearchCondition(viewer.getId(), LAT, LNG, keyword, category, radius,
                 recruitingOnly, sort, NOW, 0, 20));
     }
 
+    /** 검색어만 주고 1km·모집중·최신순으로 검색 */
+    private Page<PostSearchRow> search(PostSearchKeyword.Parsed keyword) {
+        return search(keyword, null, 1000, true, PostSort.LATEST);
+    }
+
+    private static PostSearchKeyword.Parsed word(String keyword) {
+        return PostSearchKeyword.parse(keyword);
+    }
+
+    private static java.util.List<Long> ids(Page<PostSearchRow> page) {
+        return page.getContent().stream().map(PostSearchRow::postId).toList();
+    }
+
+    /** 호스트 집 위치를 (lat, lng)로 두고 글을 올린다. 글에는 그때의 집 위치가 저장된다 */
     private Post save(String title, double lat, double lng, int unitPriceTimesSix, LocalDateTime deadlineAt) {
+        host.changeLocation("역삼동", lat, lng);
         Post post = Post.create(host, title, null, "커클랜드 생수", null, Category.FOOD, "단위", 6,
-                unitPriceTimesSix * 6, deadlineAt, "정문", "역삼동", lat, lng);
+                unitPriceTimesSix * 6, deadlineAt);
         postRepository.save(post);
         em.flush();
         return post;
     }
 
     private void savePostOf(User owner) {
+        owner.changeLocation("역삼동", 37.5012, 127.0396);
         postRepository.save(Post.create(owner, "숨김", null, "상품", null, Category.FOOD, "단위", 6, 6000,
-                NOW.plusDays(1), "정문", "역삼동", 37.5012, 127.0396));
+                NOW.plusDays(1)));
     }
 
     private void setStatus(Post post, PostStatus status) {

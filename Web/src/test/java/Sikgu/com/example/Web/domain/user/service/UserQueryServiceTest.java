@@ -8,9 +8,11 @@ import static org.mockito.BDDMockito.given;
 
 import Sikgu.com.example.Web.domain.block.repository.BlockRepository;
 import Sikgu.com.example.Web.domain.participation.entity.Participation;
+import Sikgu.com.example.Web.domain.participation.enums.PaymentStatus;
 import Sikgu.com.example.Web.domain.participation.repository.ParticipationRepository;
 import Sikgu.com.example.Web.domain.participation.service.TradeStatsReader;
 import Sikgu.com.example.Web.domain.post.entity.Post;
+import Sikgu.com.example.Web.domain.post.enums.DistanceRange;
 import Sikgu.com.example.Web.domain.post.enums.Category;
 import Sikgu.com.example.Web.domain.review.enums.ReviewTag;
 import Sikgu.com.example.Web.domain.review.repository.ReviewRepository;
@@ -67,7 +69,7 @@ class UserQueryServiceTest {
     User me = Fixtures.user(1L);
     User other = Fixtures.user(2L);
 
-    // 내가 연 공구: 모집완료 → 할 일 ORDER
+    // 내가 연 공구: 모집완료 + 나눔 장소 전원 동의 → 할 일 ORDER
     Post hostingRecruited;
     // 내가 참여한 공구: 나눔 진행 중 → 할 일 CONFIRM_RECEIPT
     Post joinedDistributed;
@@ -87,6 +89,7 @@ class UserQueryServiceTest {
         hostingRecruited.addParticipant(2);
         hostingRecruited.addParticipant(4);
         hostingRecruited.markRecruited(NOW);
+        hostingRecruited.proposeDistributionPlace("정문 앞", null, null, NOW);
 
         joinedDistributed = post(11L, other, NOW.minusDays(2));
         joinedDistributed.addParticipant(2);
@@ -140,7 +143,42 @@ class UserQueryServiceTest {
         assertThat(page.content()).extracting(card -> card.post().postId()).containsExactly(11L, 10L);
         assertThat(page.content()).extracting(MyPostCard::actionRequired)
                 .containsExactly(ActionRequired.CONFIRM_RECEIPT, ActionRequired.ORDER);
-        assertThat(page.content().get(0).post().distanceKm()).isNotNull();
+        assertThat(page.content().get(0).post().distance()).isEqualTo(DistanceRange.WITHIN_500M);
+    }
+
+    @Test
+    void 호스트가_나눔_장소를_아직_제안하지_않았으면_PROPOSE_PLACE() {
+        ReflectionTestUtils.setField(hostingRecruited, "distributionPlaceName", null);
+
+        PageResponse<MyPostCard> page = service.getMyPosts(1L, MyPostTab.ONGOING, MyPostFilter.HOST, 0, 20);
+
+        assertThat(page.content()).extracting(MyPostCard::actionRequired)
+                .containsExactly(ActionRequired.PROPOSE_PLACE);
+    }
+
+    @Test
+    void 장소에_동의하지_않은_참여자가_있으면_호스트는_기다린다() {
+        given(participationRepository.countByPostIdAndPaymentStatusAndPlaceAgreed(10L, PaymentStatus.PAID, false))
+                .willReturn(1L);
+
+        PageResponse<MyPostCard> page = service.getMyPosts(1L, MyPostTab.ONGOING, MyPostFilter.HOST, 0, 20);
+
+        assertThat(page.content()).extracting(MyPostCard::actionRequired).containsOnlyNulls();
+    }
+
+    @Test
+    void 참여자는_제안된_나눔_장소에_동의하지_않았으면_AGREE_PLACE() {
+        Post recruiting = post(13L, other, NOW.minusHours(1));
+        recruiting.addParticipant(2);
+        recruiting.addParticipant(1);
+        recruiting.proposeDistributionPlace("후문", null, null, NOW);
+        given(participationRepository.findMyPosts(1L)).willReturn(List.of(
+                Participation.participant(recruiting, me, 1, NOW)));
+
+        PageResponse<MyPostCard> page = service.getMyPosts(1L, MyPostTab.ONGOING, MyPostFilter.ALL, 0, 20);
+
+        assertThat(page.content()).extracting(MyPostCard::actionRequired)
+                .containsExactly(ActionRequired.AGREE_PLACE);
     }
 
     @Test

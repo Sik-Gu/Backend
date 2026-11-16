@@ -1,7 +1,6 @@
 package Sikgu.com.example.Web.domain.post.dto.request;
 
 import Sikgu.com.example.Web.domain.post.enums.Category;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -11,7 +10,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * POST /api/posts. 검증 규칙(길이·범위)은 가정값 (docs/API.md 6장)
+ * POST /api/posts. 검증 규칙(길이·범위)은 가정값 (docs/API.md 6장).
+ * 위치는 받지 않는다: 호스트의 집 위치(GPS)를 글에 저장한다. 나눔 장소는 모집 중에 참여자와 정한다.
  */
 public record PostCreateRequest(
         @NotBlank(message = "제목은 필수입니다.")
@@ -53,10 +53,6 @@ public record PostCreateRequest(
         Integer hostUnits,
 
         @NotNull(message = "모집 마감 일시는 필수입니다.")
-        LocalDateTime deadlineAt,
-
-        @NotNull(message = "거래 장소는 필수입니다.")
-        @Valid
-        TradePlaceRequest tradePlace
+        LocalDateTime deadlineAt
 ) {
 }

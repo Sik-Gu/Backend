@@ -61,17 +61,16 @@ class LoginServiceTest {
     void setUp() {
         loginService = new LoginService(userRepository, passwordEncoder, jwtProvider,
                 refreshTokenRepository, accessTokenBlacklist, CLOCK);
-        user = User.create("haeseung01", "user@korea.ac.kr", "$2a$10$hashed", "배고픈 고구마",
-                "역삼동", 37.5, 127.0);
+        user = User.create("user@korea.ac.kr", "$2a$10$hashed", "배고픈 고구마");
         ReflectionTestUtils.setField(user, "id", 12L);
     }
 
     @Test
     void 비밀번호가_맞으면_토큰을_발급하고_Refresh_Token을_14일_저장한다() {
-        given(userRepository.findByLoginId("haeseung01")).willReturn(Optional.of(user));
+        given(userRepository.findBySchoolEmail("user@korea.ac.kr")).willReturn(Optional.of(user));
         given(passwordEncoder.matches("pass123!", "$2a$10$hashed")).willReturn(true);
 
-        LoginResponse response = loginService.login(new LoginRequest("haeseung01", "pass123!"));
+        LoginResponse response = loginService.login(new LoginRequest("user@korea.ac.kr", "pass123!"));
 
         assertThat(jwtProvider.parse(response.accessToken()).userId()).isEqualTo(12L);
         assertThat(jwtProvider.parse(response.accessToken()).accessToken()).isTrue();
@@ -81,32 +80,42 @@ class LoginServiceTest {
     }
 
     @Test
-    void 아이디가_없으면_AUTH4011() {
-        given(userRepository.findByLoginId("nobody")).willReturn(Optional.empty());
+    void 가입되지_않은_이메일이면_AUTH4011() {
+        given(userRepository.findBySchoolEmail("nobody@korea.ac.kr")).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> loginService.login(new LoginRequest("nobody", "pass123!")))
+        assertThatThrownBy(() -> loginService.login(new LoginRequest("nobody@korea.ac.kr", "pass123!")))
                 .isInstanceOf(GeneralException.class)
                 .extracting("errorStatus").isEqualTo(ErrorStatus.LOGIN_FAILED);
     }
 
     @Test
-    void 비밀번호가_틀리면_아이디가_없을_때와_같은_AUTH4011() {
-        given(userRepository.findByLoginId("haeseung01")).willReturn(Optional.of(user));
+    void 비밀번호가_틀리면_가입되지_않은_이메일과_같은_AUTH4011() {
+        given(userRepository.findBySchoolEmail("user@korea.ac.kr")).willReturn(Optional.of(user));
         given(passwordEncoder.matches("wrong", "$2a$10$hashed")).willReturn(false);
 
-        assertThatThrownBy(() -> loginService.login(new LoginRequest("haeseung01", "wrong")))
+        assertThatThrownBy(() -> loginService.login(new LoginRequest("user@korea.ac.kr", "wrong")))
                 .isInstanceOf(GeneralException.class)
                 .extracting("errorStatus").isEqualTo(ErrorStatus.LOGIN_FAILED);
         verify(refreshTokenRepository, never()).save(any(), any(), any());
     }
 
     @Test
-    void 정지된_계정이면_AUTH4031() {
-        suspend(user, null);
-        given(userRepository.findByLoginId("haeseung01")).willReturn(Optional.of(user));
+    void 이메일은_대소문자를_구분하지_않는다() {
+        given(userRepository.findBySchoolEmail("user@korea.ac.kr")).willReturn(Optional.of(user));
         given(passwordEncoder.matches("pass123!", "$2a$10$hashed")).willReturn(true);
 
-        assertThatThrownBy(() -> loginService.login(new LoginRequest("haeseung01", "pass123!")))
+        LoginResponse response = loginService.login(new LoginRequest("User@Korea.ac.kr", "pass123!"));
+
+        assertThat(response.userId()).isEqualTo(12L);
+    }
+
+    @Test
+    void 정지된_계정이면_AUTH4031() {
+        suspend(user, null);
+        given(userRepository.findBySchoolEmail("user@korea.ac.kr")).willReturn(Optional.of(user));
+        given(passwordEncoder.matches("pass123!", "$2a$10$hashed")).willReturn(true);
+
+        assertThatThrownBy(() -> loginService.login(new LoginRequest("user@korea.ac.kr", "pass123!")))
                 .isInstanceOf(GeneralException.class)
                 .extracting("errorStatus").isEqualTo(ErrorStatus.SUSPENDED_USER);
     }
@@ -114,10 +123,10 @@ class LoginServiceTest {
     @Test
     void 정지_기간이_끝났으면_로그인된다() {
         suspend(user, LocalDateTime.now(CLOCK).minusDays(1));
-        given(userRepository.findByLoginId("haeseung01")).willReturn(Optional.of(user));
+        given(userRepository.findBySchoolEmail("user@korea.ac.kr")).willReturn(Optional.of(user));
         given(passwordEncoder.matches("pass123!", "$2a$10$hashed")).willReturn(true);
 
-        assertThat(loginService.login(new LoginRequest("haeseung01", "pass123!")).accessToken()).isNotBlank();
+        assertThat(loginService.login(new LoginRequest("user@korea.ac.kr", "pass123!")).accessToken()).isNotBlank();
     }
 
     @Test

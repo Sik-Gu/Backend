@@ -69,14 +69,13 @@
 | 컬럼 | 타입 | 제약 | 비고 |
 |---|---|---|---|
 | user_id | BIGSERIAL | PK | [원본] |
-| login_id | VARCHAR | UNIQUE, NOT NULL | [반영] 별도 아이디 로그인 결정 |
 | role | UserRole | NOT NULL, DEFAULT 'USER' | [제안] 운영팀(ADMIN) 구분 — 수령 문의 처리 (D10) |
-| school_email | VARCHAR | UNIQUE, NOT NULL | [원본] 인증 수단 |
+| school_email | VARCHAR | UNIQUE, NOT NULL | [원본] 인증 수단 + **로그인 ID** (D16, login_id 삭제) |
 | password_hash | VARCHAR(60) | NOT NULL | [원본] BCrypt 결과 문자열 (salt 포함, 60자) (D7) |
 | nickname | VARCHAR | NOT NULL | [원본] 랜덤 부여 |
 | university_name | VARCHAR | | [원본] 학교명 |
-| dong_name | VARCHAR | | [반영] 주소 → 동 이름 |
-| latitude / longitude | DOUBLE PRECISION | | [반영] 거리 계산용, 외부엔 동 이름만 노출 |
+| dong_name | VARCHAR | NULL | [반영] 집 위치의 동 이름. 가입 직후 설정 전에는 NULL (D18) |
+| latitude / longitude | DOUBLE PRECISION | NULL | **집 GPS 좌표** (D17). 본인에게만 노출, 다른 사용자에겐 동 이름·거리 구간만 |
 | rating_avg | NUMERIC(2,1) | | [반영] 평균 별점 캐시 |
 | trade_count | INT | DEFAULT 0 | [반영] 거래 횟수 캐시 |
 | created_at | TIMESTAMP | | [반영] 가입 일시 |
@@ -87,7 +86,7 @@
 #### 비밀번호 저장·로그인 방식
 Spring Security `BCryptPasswordEncoder` 사용 (D7)
 1. **회원가입**: `encoder.encode(password)` → 내부에서 랜덤 salt 생성 + 해시 → `$2a$10$[salt 22자][hash 31자]` 문자열을 `password_hash`에 저장
-2. **로그인**: `login_id`로 사용자 조회 → `encoder.matches(입력 비밀번호, password_hash)` → 저장값에서 salt·cost를 꺼내 다시 해시해서 비교
+2. **로그인**: `school_email`(소문자)로 사용자 조회 → `encoder.matches(입력 비밀번호, password_hash)` → 저장값에서 salt·cost를 꺼내 다시 해시해서 비교
 3. 일치하면 **JWT 발급** (Access Token + Refresh Token)
 
 > salt는 `password_hash` 문자열 안에 들어 있어서 별도 컬럼 없음. 로그인 비교에 `encode()`를 쓰면 매번 새 salt가 생겨서 항상 실패 → 반드시 `matches()` 사용
@@ -110,15 +109,19 @@ Spring Security `BCryptPasswordEncoder` 사용 (D7)
 | total_price | INT | | [반영] |
 | unit_price | INT | | [원본] 서버에서 계산 (total_price / total_units) |
 | deadline_at | TIMESTAMP | | [반영] 모집 마감 일시 |
-| trade_place_name | VARCHAR | | [반영] 주소 → 거래 장소 이름 |
-| trade_latitude / trade_longitude | DOUBLE PRECISION | | [반영] |
-| dong_name | VARCHAR | | [반영] |
+| host_latitude / host_longitude | DOUBLE PRECISION | NOT NULL | **글 올릴 때의 호스트 집 GPS 좌표** (D17). 거리 필터(500m·1km) 기준. 응답에 절대 넣지 않음 |
+| dong_name | VARCHAR | NOT NULL | 글 올릴 때의 호스트 동 이름 (표시용) |
+| distribution_place_name | VARCHAR(100) | NULL | 호스트가 제안한 나눔 장소 (D20). 제안 전 NULL |
+| distribution_place_latitude / _longitude | DOUBLE PRECISION | NULL | 나눔 장소 좌표 (공개 장소, 선택) |
+| distribution_place_proposed_at | TIMESTAMP | NULL | 나눔 장소 제안·변경 시각 |
+| search_words | VARCHAR(400) | NOT NULL | 제목 + 상품명 단어 색인. 예: `' 생수 2l 공구 '` (D19) |
+| title_chosung | VARCHAR(100) | NOT NULL | 제목 초성, 공백 제거. 예: `'ㅅㅅㄱㄱ'` (D19) |
 | view_count | INT | DEFAULT 0 | [원본] 인기순 정렬용 |
 | status | PostStatus | | [반영] 4개 → 7개 + CANCELLED |
 | recruited_at | TIMESTAMP | NULL | [반영] 모집완료 시각 (`filled_units == total_units` 순간) |
 | ordered_at | TIMESTAMP | NULL | [반영] 주문완료 시각 (영수증 등록) |
 | shipped_at | TIMESTAMP | NULL | [반영] 배송 시작 시각 |
-| distributed_at | TIMESTAMP | NULL | [반영] 호스트가 나눔 일정·장소를 입력해 `DISTRIBUTED`가 된 시각 |
+| distributed_at | TIMESTAMP | NULL | [반영] 호스트가 나눔 일시를 입력해 `DISTRIBUTED`가 된 시각 |
 | settled_at | TIMESTAMP | NULL | [반영] 정산완료 시각 |
 | cancelled_at | TIMESTAMP | NULL | [제안] 취소 시각 (인원 미달 / 호스트 취소) |
 | created_at | TIMESTAMP | | [원본] |
@@ -129,11 +132,13 @@ Spring Security `BCryptPasswordEncoder` 사용 (D7)
 > - 검색(제목·상품명·카테고리·거리·상태)이 `posts` 한 테이블에서 JOIN 없이 처리됨
 > - 상품 카탈로그(여러 게시글이 같은 상품 공유) 기능이 생기면 그때 분리 검토
 >
-> 검색 성능: `ILIKE '%검색어%'`는 B-Tree 인덱스를 못 타므로, 데이터가 늘면 `pg_trgm` GIN 인덱스 추가
+> 검색(D19): 정확한 단어는 `search_words LIKE '% 생수 %'`, 초성은 `title_chosung LIKE '%ㅅㅅ%'`.
+> 두 컬럼은 엔티티 저장·수정 시(`@PrePersist`/`@PreUpdate`) 자동으로 다시 만든다. 기존 데이터가 있으면 한 번 일괄로 채워야 한다.
+> 데이터가 늘면 두 컬럼에 `pg_trgm` GIN 인덱스를 추가한다
 > ```sql
 > CREATE EXTENSION IF NOT EXISTS pg_trgm;
-> CREATE INDEX idx_posts_title_trgm ON posts USING gin (title gin_trgm_ops);
-> CREATE INDEX idx_posts_product_name_trgm ON posts USING gin (product_name gin_trgm_ops);
+> CREATE INDEX idx_posts_search_words_trgm ON posts USING gin (search_words gin_trgm_ops);
+> CREATE INDEX idx_posts_title_chosung_trgm ON posts USING gin (title_chosung gin_trgm_ops);
 > ```
 
 ### 4.3 `post_images` 게시글 이미지 [반영·신규]
@@ -159,8 +164,9 @@ Spring Security `BCryptPasswordEncoder` 사용 (D7)
 | received_at | TIMESTAMP | NULL | [제안] '받았어요' 누른 시각 또는 자동 수령 처리 시각 (D10) |
 | auto_confirmed | BOOLEAN | NOT NULL, DEFAULT FALSE | [제안] 3일 지나 자동으로 수령 처리됐는지 (D10) |
 | joined_at | TIMESTAMP | | [반영] 참여 일시 |
-| adjustment_amount | BIGINT | NULL | [구현] 영수증 차액 정산 금액. 양수 = 추가 청구, 음수 = 환급 (D9) |
-| adjustment_debt_amount | BIGINT | NULL | [구현] 추가 청구 중 잔액 부족으로 미수금이 된 금액 (D9) |
+| place_agreed | BOOLEAN | NOT NULL, DEFAULT FALSE | 나눔 장소 동의 여부 (D20). 호스트는 항상 TRUE, 장소가 바뀌면 참여자는 FALSE로 초기화 |
+| leave_reason | VARCHAR(30) | NULL | 나간 이유: `CHANGED_MIND`, `PLACE_DISAGREEMENT` (D20) |
+| left_at | TIMESTAMP | NULL | 나간 시각 |
 | | | UNIQUE(post_id, user_id) | [반영] |
 
 > 원본의 "시스템 매칭/유저 주도" 컬럼은 MVP에서 제거·보류 (유저 주도형만)
@@ -175,10 +181,9 @@ Spring Security `BCryptPasswordEncoder` 사용 (D7)
 | post_id | BIGINT | FK → posts, UNIQUE | [반영] |
 | courier | VARCHAR | NULL | [반영] 배송 시작 시 입력 |
 | tracking_number | VARCHAR | NULL | [반영] |
-| receipt_amount | INT | | [원본] 영수증 금액 |
 | registered_at | TIMESTAMP | | [원본] |
 | distribute_at | TIMESTAMP | NULL | [원본] 나눔 예정 일시. '받았어요' 미클릭 시 **자동 정산 기준: + 3일** (D10) |
-| distribute_place | VARCHAR | NULL | [원본] 나눔 장소 |
+| distribute_place | VARCHAR | NULL | [원본] 나눔 장소. 주문 전에 합의한 `posts.distribution_place_name`을 나눔 일시 입력 때 복사 (D20) |
 
 ### 4.6 `receipt_images` 영수증 사진
 
@@ -596,7 +601,9 @@ Optional<Post> findByIdForUpdate(@Param("postId") Long postId);
   - 참여자도 완료 시점에 차감 → 그 사이 잔액을 다 쓰면 호스트가 돈을 못 받음. 참여 즉시 보류해야 지급이 보장됨
 - **남은 미정**: 영수증 미첨부 유예 시간, 호스트 패널티 금액·분배 방식
 
-### D9. 영수증 금액 ≠ 모집 금액일 때 차액 처리 (2026-11-14)
+### D9. 영수증 금액 ≠ 모집 금액일 때 차액 처리 (2026-11-14) — **2026-11-16 차액 정산 폐기 (D21)**
+
+> 아래 차액 정산 내용은 D21로 더 이상 쓰지 않는다. 기록으로 남겨 둔다.
 - **문제 상황**: 참여자는 게시글 등록 때 호스트가 입력한 **예상 가격**으로 결제(보류)함. 실제 가격은 호스트가 구매할 때 확정되므로, 그 사이 가격 변동·배송비·할인 때문에 영수증 금액과 다를 수 있음
 - **결정**
   - **영수증이 더 쌀 때**: 차액을 참여자별 단위 비율대로 계산해서 각자 지갑에 환급 (`ADJUSTMENT_REFUND`). 호스트 본인 몫도 같은 비율로 계산
@@ -720,3 +727,37 @@ Optional<Post> findByIdForUpdate(@Param("postId") Long postId);
 - **프론트와 약속**: 보내는 좌표는 사용자 GPS 원본이 아니라 **카카오 SDK가 돌려주는 동의 중심 좌표** (D14 개인정보 원칙: 정확한 위치를 저장하지 않음)
 - **검토한 대안**: 백엔드가 카카오 REST API를 중계 → REST 키를 서버에만 둘 수 있지만, 위 이유로 얻는 게 적어서 기각
 - **팀이 정할 것**: 카카오 앱을 누구 계정으로 만들지 (카카오맵 API를 처음 활성화하는 계정이어야 무료 쿼터 적용)
+
+### D16. 가입·로그인은 학교 이메일 + 비밀번호, 아이디 없음 (2026-11-16)
+- `users.login_id` 삭제, `school_email`이 로그인 ID. 아이디 중복확인 API(`GET /api/auth/check-id`) 삭제
+- 가입: 이메일 인증(send → verify) → `verificationToken` + 비밀번호. 닉네임은 랜덤
+- 로그인: 이메일(소문자로 정규화) + 비밀번호. 실패 시 이메일·비밀번호 중 어느 쪽이 틀렸는지 구분하지 않음
+
+### D17. 거리는 내 집 GPS ↔ 글 올린 사람 집 GPS, 500m·1km (2026-11-16, D14·D15 일부 변경)
+- 사용자 위치는 동 중심 좌표가 아니라 **기기 GPS로 구한 집 좌표**. 동 이름은 프론트가 카카오맵 SDK로 구함
+- 글을 올리면 그때의 호스트 집 좌표·동 이름을 `posts`에 저장(스냅샷). 호스트가 나중에 이사해도 글 위치는 그대로
+- 목록 반경은 `500`, `1000`(m)만. 기존 거래 장소(`trade_place_*`) 컬럼 삭제
+- **다른 사람의 위치는 볼 수 없다**: 좌표와 정확한 거리(m)를 응답에 넣지 않고 `DistanceRange` 구간(`WITHIN_500M`, `WITHIN_1KM`, `OVER_1KM`)만 준다. 정확한 거리를 주면 여러 지점에서 조회해 집 위치를 역산할 수 있기 때문
+
+### D18. 집 위치는 가입 직후 따로 설정 (2026-11-16)
+- 가입 요청에는 위치를 받지 않고, 가입 후 `PATCH /api/users/me/location`으로 설정
+- 설정 전에는 공구 목록·등록이 `USER4001`. 프론트는 가입 직후 위치 설정 화면으로 보낸다
+
+### D19. 검색은 정확한 단어 + 초성만 (2026-11-16)
+- 정확한 단어: 제목·상품명을 글자·숫자가 아닌 문자 기준으로 나눈 단어 중 하나와 통째로 같아야 함 (대소문자 무시, 여러 단어면 AND)
+- 초성: 검색어가 전부 초성이면 제목 초성(공백 제거)에 포함되는지 확인. 상품명·본문에는 걸지 않음
+- 완성형 + 자모 섞인 입력은 `SEARCH4001`로 거부. 부분 일치 LIKE, MySQL FULLTEXT는 쓰지 않음 (PostgreSQL + H2 테스트 환경)
+- 미리 계산한 `search_words`, `title_chosung` 컬럼에 LIKE로 검색
+
+### D20. 나눔 장소는 주문 전에 전원 합의, 의견이 맞지 않으면 나가기 (2026-11-16, D6 일부 변경)
+- 호스트가 모집중·모집완료 중에 나눔 장소를 제안(`PUT .../distribution-place`). 바꾸면 참여자 동의 초기화
+- 참여자는 동의(`POST .../distribution-place/agreement`)하거나, 의견이 맞지 않으면 `DELETE .../participations/me?reason=PLACE_DISAGREEMENT`로 나감 → **전액 환급**, `RECRUITED`면 `RECRUITING`으로 돌아가 빈자리 재모집
+- 모집완료 + 전원 동의여야 영수증 등록(주문) 가능 (`PLACE4091`, `PLACE4092`)
+- 나눔 일시 입력(`PATCH .../order/distribution`)은 일시만 받고, 장소는 합의한 곳을 그대로 씀
+- 주문 이후 나가기는 지금처럼 불가
+
+### D21. 실제 결제 금액이 달라도 차액 정산 안 함 (2026-11-16, D9 차액 정산 폐기)
+- 할인·배달비 등으로 실제 결제 금액이 게시글 가격과 달라지는 경우는 고려하지 않음. 게시글 `total_price` 기준으로 끝까지 진행
+- `orders.receipt_amount`, `participations.adjustment_*` 삭제. 영수증 등록은 사진만
+- `PointClient.adjust()` 삭제. 차액 청구가 없으니 미수금도 생기지 않음 → 미수금(`point_debts`, `DEBT_REPAYMENT`, 계정 정지 등 D9 나머지)은 포인트 담당과 정리 필요 (코드는 아직 남겨 둠)
+

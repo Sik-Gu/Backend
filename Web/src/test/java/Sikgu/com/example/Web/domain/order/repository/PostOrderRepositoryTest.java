@@ -28,7 +28,7 @@ class PostOrderRepositoryTest {
     @Test
     void 영수증_사진과_함께_저장하고_조회한다() {
         Post post = savePost(PostStatus.ORDERED);
-        orderRepository.save(PostOrder.register(post, 30000, List.of("/r1.jpg", "/r2.jpg"), NOW));
+        orderRepository.save(PostOrder.register(post, List.of("/r1.jpg", "/r2.jpg"), NOW));
         em.flush();
         em.clear();
 
@@ -63,7 +63,7 @@ class PostOrderRepositoryTest {
     }
 
     private void saveOrder(Post post, LocalDateTime distributeAt) {
-        PostOrder order = PostOrder.register(post, 29040, List.of("/r.jpg"), NOW.minusDays(5));
+        PostOrder order = PostOrder.register(post, List.of("/r.jpg"), NOW.minusDays(5));
         order.scheduleDistribution(distributeAt, "정문");
         orderRepository.save(order);
     }

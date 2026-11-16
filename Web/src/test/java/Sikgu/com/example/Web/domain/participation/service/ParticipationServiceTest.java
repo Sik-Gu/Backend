@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
@@ -15,6 +17,7 @@ import Sikgu.com.example.Web.domain.participation.dto.response.ParticipationResp
 import Sikgu.com.example.Web.domain.participation.dto.response.ParticipationResponses.LeaveResponse;
 import Sikgu.com.example.Web.domain.participation.dto.response.ParticipationResponses.ParticipationStatusResponse;
 import Sikgu.com.example.Web.domain.participation.entity.Participation;
+import Sikgu.com.example.Web.domain.participation.enums.LeaveReason;
 import Sikgu.com.example.Web.domain.participation.enums.PaymentStatus;
 import Sikgu.com.example.Web.domain.participation.repository.ParticipationRepository;
 import Sikgu.com.example.Web.domain.post.entity.Post;
@@ -174,12 +177,60 @@ class ParticipationServiceTest {
         given(participationRepository.findByPostIdAndUserId(3L, 20L)).willReturn(Optional.of(mine));
         given(pointClient.refund(20L, 3L, null)).willReturn(new RefundResult(4 * 4840L, 30000L));
 
-        LeaveResponse response = service.leave(20L, 3L);
+        LeaveResponse response = service.leave(20L, 3L, LeaveReason.CHANGED_MIND);
 
-        assertThat(response).isEqualTo(new LeaveResponse(4 * 4840L, 30000L, PostStatus.RECRUITING));
+        assertThat(response).isEqualTo(
+                new LeaveResponse(4 * 4840L, 30000L, PostStatus.RECRUITING, LeaveReason.CHANGED_MIND));
         assertThat(mine.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(mine.getLeaveReason()).isEqualTo(LeaveReason.CHANGED_MIND);
         assertThat(post.getFilledUnits()).isEqualTo(2);
         verify(chatClient).leave(3L, 20L);
+    }
+
+    @Test
+    void 나눔_장소_의견이_맞지_않아_나가면_전액_환급하고_빈자리를_다시_모집한다() {
+        post.addParticipant(4);
+        post.markRecruited(NOW);
+        post.proposeDistributionPlace("정문 편의점 앞", null, null, NOW);
+        Participation mine = Participation.participant(post, member, 4, NOW);
+        given(participationRepository.findByPostIdAndUserId(3L, 20L)).willReturn(Optional.of(mine));
+        given(pointClient.refund(20L, 3L, null)).willReturn(new RefundResult(4 * 4840L, 30000L));
+
+        LeaveResponse response = service.leave(20L, 3L, LeaveReason.PLACE_DISAGREEMENT);
+
+        assertThat(response.refundedPoint()).isEqualTo(4 * 4840L);
+        assertThat(response.postStatus()).isEqualTo(PostStatus.RECRUITING);
+        assertThat(mine.getLeaveReason()).isEqualTo(LeaveReason.PLACE_DISAGREEMENT);
+        assertThat(mine.isPlaceAgreed()).isFalse();
+        assertThat(post.remainingUnits()).isEqualTo(4);
+        verify(chatClient).sendSystemMessage(eq(3L), contains("나눔 장소 의견이 맞지 않아"));
+    }
+
+    @Test
+    void 장소_제안_전에는_장소_불일치로_나갈_수_없다() {
+        post.addParticipant(4);
+        given(participationRepository.findByPostIdAndUserId(3L, 20L))
+                .willReturn(Optional.of(Participation.participant(post, member, 4, NOW)));
+
+        assertThatThrownBy(() -> service.leave(20L, 3L, LeaveReason.PLACE_DISAGREEMENT))
+                .extracting("errorStatus").isEqualTo(ErrorStatus.DISTRIBUTION_PLACE_NOT_PROPOSED);
+        verify(pointClient, never()).refund(any(), any(), any());
+    }
+
+    @Test
+    void 나갔다가_다시_참여하면_장소_동의를_다시_받는다() {
+        post.proposeDistributionPlace("정문", null, null, NOW);
+        Participation old = Participation.participant(post, member, 1, NOW);
+        old.agreePlace();
+        old.leave(LeaveReason.PLACE_DISAGREEMENT, NOW);
+        given(participationRepository.findByPostIdAndUserId(3L, 20L)).willReturn(Optional.of(old));
+        given(pointClient.pay(any(), any(), any(), anyLong())).willReturn(new PaymentResult(4840L, 0L));
+
+        service.join(20L, 3L, 1);
+
+        assertThat(old.isActive()).isTrue();
+        assertThat(old.isPlaceAgreed()).isFalse();
+        assertThat(old.getLeaveReason()).isNull();
     }
 
     @Test
@@ -187,13 +238,13 @@ class ParticipationServiceTest {
         given(participationRepository.findByPostIdAndUserId(3L, 10L))
                 .willReturn(Optional.of(Participation.host(post, host, 2, NOW)));
 
-        assertThatThrownBy(() -> service.leave(10L, 3L))
+        assertThatThrownBy(() -> service.leave(10L, 3L, LeaveReason.CHANGED_MIND))
                 .extracting("errorStatus").isEqualTo(ErrorStatus.HOST_CANNOT_LEAVE);
     }
 
     @Test
     void 참여하지_않았으면_취소할_수_없다() {
-        assertThatThrownBy(() -> service.leave(20L, 3L))
+        assertThatThrownBy(() -> service.leave(20L, 3L, LeaveReason.CHANGED_MIND))
                 .extracting("errorStatus").isEqualTo(ErrorStatus.NOT_PARTICIPANT);
     }
 
@@ -205,7 +256,7 @@ class ParticipationServiceTest {
         given(participationRepository.findByPostIdAndUserId(3L, 20L))
                 .willReturn(Optional.of(Participation.participant(post, member, 4, NOW)));
 
-        assertThatThrownBy(() -> service.leave(20L, 3L))
+        assertThatThrownBy(() -> service.leave(20L, 3L, LeaveReason.CHANGED_MIND))
                 .extracting("errorStatus").isEqualTo(ErrorStatus.INVALID_POST_STATUS);
         verify(pointClient, never()).refund(any(), any(), any());
     }

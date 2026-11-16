@@ -26,7 +26,11 @@ public final class MyPostEnums {
 
     /** 내가 해야 할 일 */
     public enum ActionRequired {
-        /** 호스트: 모집완료 → 영수증 등록 */
+        /** 호스트: 나눔 장소를 아직 제안하지 않음 (모집완료) */
+        PROPOSE_PLACE,
+        /** 참여자: 호스트가 제안한 나눔 장소에 동의 또는 나가기 */
+        AGREE_PLACE,
+        /** 호스트: 모집완료 + 전원 장소 동의 → 영수증 등록 */
         ORDER,
         /** 호스트: 주문완료 → 배송 시작 */
         SHIP,

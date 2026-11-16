@@ -1,7 +1,6 @@
 package Sikgu.com.example.Web.domain.order.dto.request;
 
 import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -15,12 +14,11 @@ import java.util.List;
  */
 public final class OrderRequests {
 
-    /** POST /api/posts/{postId}/order */
+    /**
+     * POST /api/posts/{postId}/order. 영수증 사진만 받는다.
+     * 할인·배달비 등으로 실제 결제 금액이 게시글 가격과 달라도 차액 정산은 하지 않는다 (게시글 가격 기준).
+     */
     public record OrderRegisterRequest(
-            @NotNull(message = "영수증 금액은 필수입니다.")
-            @Min(value = 1, message = "영수증 금액은 1원 이상입니다.")
-            Integer receiptAmount,
-
             @NotEmpty(message = "영수증 사진은 1장 이상 필요합니다.")
             @Size(max = 5, message = "영수증 사진은 5장까지 넣을 수 있습니다.")
             List<@NotBlank(message = "이미지 URL이 비었습니다.") @Size(max = 500) String> receiptImageUrls
@@ -47,14 +45,10 @@ public final class OrderRequests {
         }
     }
 
-    /** PATCH /api/posts/{postId}/order/distribution (D6: 나눔 일정·장소 입력) */
+    /** PATCH /api/posts/{postId}/order/distribution (D6: 나눔 일시 입력. 장소는 주문 전에 합의한 곳) */
     public record DistributionRequest(
             @NotNull(message = "나눔 일시는 필수입니다.")
-            LocalDateTime distributeAt,
-
-            @NotBlank(message = "나눔 장소는 필수입니다.")
-            @Size(max = 100, message = "나눔 장소는 100자 이하입니다.")
-            String distributePlace
+            LocalDateTime distributeAt
     ) {
     }
 

@@ -6,6 +6,7 @@ import Sikgu.com.example.Web.domain.participation.dto.response.ParticipationResp
 import Sikgu.com.example.Web.domain.participation.dto.response.ParticipationResponses.ParticipantStatus;
 import Sikgu.com.example.Web.domain.participation.dto.response.ParticipationResponses.ParticipationStatusResponse;
 import Sikgu.com.example.Web.domain.participation.entity.Participation;
+import Sikgu.com.example.Web.domain.participation.enums.LeaveReason;
 import Sikgu.com.example.Web.domain.participation.enums.ReceiptStatus;
 import Sikgu.com.example.Web.domain.participation.repository.ParticipationRepository;
 import Sikgu.com.example.Web.domain.post.entity.Post;
@@ -88,9 +89,14 @@ public class ParticipationService {
                 post.getStatus(), chatClient.findRoomId(postId).orElse(null));
     }
 
-    /** 참여 취소 + 환급. 모집중·모집완료에서만. 모집완료였으면 모집중으로 돌아간다 */
+    /**
+     * 참여 취소(나가기) + 전액 환급. 주문 전(모집중·모집완료)에서만. 모집완료였으면 모집중으로 돌아가 빈자리를 다시 모집한다.
+     *
+     * @param reason PLACE_DISAGREEMENT면 나눔 장소 의견이 맞지 않아 나가는 경우. 호스트가 장소를 제안한 뒤에만 쓸 수 있다
+     */
     @Transactional
-    public LeaveResponse leave(Long userId, Long postId) {
+    public LeaveResponse leave(Long userId, Long postId, LeaveReason reason) {
+        LocalDateTime now = LocalDateTime.now(clock);
         Post post = getPostForUpdate(postId);
         Participation participation = participationRepository.findByPostIdAndUserId(postId, userId)
                 .filter(Participation::isActive)
@@ -98,16 +104,21 @@ public class ParticipationService {
         if (participation.isHost()) {
             throw new GeneralException(ErrorStatus.HOST_CANNOT_LEAVE);
         }
-        if (post.getStatus() != PostStatus.RECRUITING && post.getStatus() != PostStatus.RECRUITED) {
-            throw new GeneralException(ErrorStatus.INVALID_POST_STATUS);
+        post.requireBeforeOrder();
+        if (reason == LeaveReason.PLACE_DISAGREEMENT && !post.hasDistributionPlace()) {
+            throw new GeneralException(ErrorStatus.DISTRIBUTION_PLACE_NOT_PROPOSED);
         }
 
         post.removeParticipant(participation.getUnits());
         RefundResult refund = pointClient.refund(userId, postId, participation.getId());
-        participation.markRefunded();
+        participation.leave(reason, now);
         chatClient.leave(postId, userId);
+        if (reason == LeaveReason.PLACE_DISAGREEMENT) {
+            chatClient.sendSystemMessage(postId, participation.getUser().getNickname()
+                    + "님이 나눔 장소 의견이 맞지 않아 공구에서 나갔어요. 빈자리를 다시 모집해요.");
+        }
 
-        return new LeaveResponse(participation.paidPoint(), refund.balanceAfter(), post.getStatus());
+        return new LeaveResponse(participation.paidPoint(), refund.balanceAfter(), post.getStatus(), reason);
     }
 
     /** 결제·수령 현황 (호스트·참여자만) */

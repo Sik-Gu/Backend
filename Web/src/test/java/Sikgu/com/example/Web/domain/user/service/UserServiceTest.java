@@ -27,9 +27,20 @@ class UserServiceTest {
     UserService userService;
 
     @Test
-    void 동네를_바꾸면_동_이름과_위경도가_모두_바뀐다() {
-        User user = User.create("haeseung01", "user@korea.ac.kr", "$2a$10$hashed", "배고픈 고구마",
-                "역삼동", 37.5006, 127.0364);
+    void 가입_직후_집_위치를_GPS로_설정한다() {
+        User user = User.create("user@korea.ac.kr", "$2a$10$hashed", "배고픈 고구마");
+        given(userRepository.findById(12L)).willReturn(Optional.of(user));
+
+        userService.changeLocation(12L, new LocationRequest("역삼동", 37.5006, 127.0364));
+
+        assertThat(user.hasLocation()).isTrue();
+        assertThat(user.getDongName()).isEqualTo("역삼동");
+    }
+
+    @Test
+    void 집_위치를_바꾸면_동_이름과_위경도가_모두_바뀐다() {
+        User user = User.create("user@korea.ac.kr", "$2a$10$hashed", "배고픈 고구마");
+        user.changeLocation("역삼동", 37.5006, 127.0364);
         given(userRepository.findById(12L)).willReturn(Optional.of(user));
 
         LocationResponse response = userService.changeLocation(12L,

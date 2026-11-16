@@ -30,12 +30,6 @@ public class FakePointClient implements PointClient {
     }
 
     @Override
-    public AdjustmentResult adjust(Long userId, Long postId, Long participationId, long amount) {
-        log.debug("[FakePoint] adjust user={} post={} participation={} amount={}", userId, postId, participationId, amount);
-        return new AdjustmentResult(amount, Math.max(amount, 0L), 0L);
-    }
-
-    @Override
     public void settle(Long postId, Long hostId) {
         log.debug("[FakePoint] settle post={} host={}", postId, hostId);
     }

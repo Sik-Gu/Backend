@@ -4,6 +4,7 @@ import Sikgu.com.example.Web.domain.participation.enums.ParticipationRole;
 import Sikgu.com.example.Web.domain.participation.enums.PaymentStatus;
 import Sikgu.com.example.Web.domain.participation.enums.ReceiptStatus;
 import Sikgu.com.example.Web.domain.post.enums.Category;
+import Sikgu.com.example.Web.domain.post.enums.DistanceRange;
 import Sikgu.com.example.Web.domain.post.enums.PostStatus;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,7 +38,8 @@ public final class PostResponses {
             int filledUnits,
             int participantCount,
             String dongName,
-            Double distanceKm,
+            /** 내 집 ↔ 글 올린 사람 집 거리 구간. 좌표·정확한 거리는 내려주지 않는다 */
+            DistanceRange distance,
             PostStatus status,
             int viewCount,
             LocalDateTime deadlineAt,
@@ -63,8 +65,9 @@ public final class PostResponses {
             PostStatus status,
             StatusTimeline statusTimeline,
             String dongName,
-            Double distanceKm,
-            String tradePlaceName,
+            DistanceRange distance,
+            /** 나눔 장소 합의 현황. 호스트가 아직 제안하지 않았으면 null */
+            DistributionPlaceInfo distributionPlace,
             LocalDateTime deadlineAt,
             int viewCount,
             LocalDateTime createdAt,
@@ -90,8 +93,19 @@ public final class PostResponses {
                               List<Category> mainCategories) {
     }
 
+    /** placeAgreed: 나눔 장소에 동의했는지 (장소 제안 전이면 false) */
     public record ParticipantSummary(Long userId, String nickname, ParticipationRole role, int units,
-                                     Double rating, int tradeCount, List<Category> mainCategories) {
+                                     Double rating, int tradeCount, List<Category> mainCategories,
+                                     boolean placeAgreed) {
+    }
+
+    /**
+     * 나눔 장소 합의 현황. 공개 장소라 좌표를 보여준다 (집 위치와는 별개).
+     *
+     * @param myAgreed 내가 동의했는지. 참여자가 아니면 null
+     */
+    public record DistributionPlaceInfo(String name, Double latitude, Double longitude, LocalDateTime proposedAt,
+                                        int agreedCount, int memberCount, boolean allAgreed, Boolean myAgreed) {
     }
 
     public record MyParticipation(ParticipationRole role, int units, PaymentStatus paymentStatus,

@@ -2,6 +2,7 @@ package Sikgu.com.example.Web.domain.post.entity;
 
 import Sikgu.com.example.Web.domain.post.enums.Category;
 import Sikgu.com.example.Web.domain.post.enums.PostStatus;
+import Sikgu.com.example.Web.domain.post.search.PostSearchKeyword;
 import Sikgu.com.example.Web.domain.user.entity.User;
 import Sikgu.com.example.Web.global.apiPayload.code.ErrorStatus;
 import Sikgu.com.example.Web.global.apiPayload.exception.GeneralException;
@@ -18,6 +19,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -91,19 +94,43 @@ public class Post {
     @Column(nullable = false)
     private LocalDateTime deadlineAt;
 
-    @Column(nullable = false, length = 100)
-    private String tradePlaceName;
-
-    /** 거래 장소는 공개 장소라 좌표를 그대로 저장한다 */
+    /**
+     * 글을 올릴 때의 호스트 집 위치 (GPS). 목록의 500m·1km 거리 필터 기준이다.
+     * 호스트가 나중에 집 위치를 바꿔도 이 값은 그대로다.
+     * <b>다른 사용자에게는 좌표를 절대 내려주지 않는다.</b> 거리도 구간(500m 이내·1km 이내)으로만 알려준다.
+     */
     @Column(nullable = false)
-    private Double tradeLatitude;
+    private Double hostLatitude;
 
     @Column(nullable = false)
-    private Double tradeLongitude;
+    private Double hostLongitude;
 
-    /** 거래 장소의 동 이름 */
+    /** 글을 올릴 때의 호스트 동 이름 (화면 표시용) */
     @Column(nullable = false, length = 30)
     private String dongName;
+
+    // ---------- 나눔 장소 (주문 전에 참여자 전원 합의) ----------
+
+    /** 호스트가 제안한 나눔 장소. 아직 제안 전이면 null */
+    @Column(length = 100)
+    private String distributionPlaceName;
+
+    /** 나눔 장소는 공개 장소라 좌표를 그대로 저장한다 (선택) */
+    private Double distributionPlaceLatitude;
+
+    private Double distributionPlaceLongitude;
+
+    private LocalDateTime distributionPlaceProposedAt;
+
+    // ---------- 검색 색인 (PostSearchKeyword) ----------
+
+    /** 제목 + 상품명 단어 색인. 예: " 생수 2l 공구 " (정확한 단어 검색용) */
+    @Column(nullable = false, length = 400)
+    private String searchWords;
+
+    /** 제목 초성 (공백 제거). 예: "ㅅㅅㄱㄱ" (초성 검색용) */
+    @Column(nullable = false, length = 100)
+    private String titleChosung;
 
     @Column(nullable = false)
     private int viewCount;
@@ -130,8 +157,7 @@ public class Post {
 
     public static Post create(User host, String title, String content, String productName, String productLink,
                               Category category, String baseUnit, int totalUnits, int totalPrice,
-                              LocalDateTime deadlineAt, String tradePlaceName, String dongName,
-                              Double tradeLatitude, Double tradeLongitude) {
+                              LocalDateTime deadlineAt) {
         Post post = new Post();
         post.host = host;
         post.title = title;
@@ -144,14 +170,15 @@ public class Post {
         post.totalPrice = totalPrice;
         post.unitPrice = totalPrice / totalUnits;
         post.deadlineAt = deadlineAt;
-        post.tradePlaceName = tradePlaceName;
-        post.dongName = dongName;
-        post.tradeLatitude = tradeLatitude;
-        post.tradeLongitude = tradeLongitude;
+        // 호스트 집 위치를 글에 저장 (호출 전에 host.hasLocation() 확인)
+        post.hostLatitude = host.getLatitude();
+        post.hostLongitude = host.getLongitude();
+        post.dongName = host.getDongName();
         post.filledUnits = 0;
         post.participantCount = 0;
         post.viewCount = 0;
         post.status = PostStatus.RECRUITING;
+        post.refreshSearchIndex();
         return post;
     }
 
@@ -186,7 +213,7 @@ public class Post {
 
     // ---------- 수정 ----------
 
-    /** 공구 수정. null인 값은 그대로 둔다 */
+    /** 공구 수정. null인 값은 그대로 둔다. 검색 색인도 같이 갱신한다 */
     public void update(String title, String productName, String productLink, Category category, String content,
                        LocalDateTime deadlineAt) {
         if (title != null) {
@@ -207,13 +234,40 @@ public class Post {
         if (deadlineAt != null) {
             this.deadlineAt = deadlineAt;
         }
+        refreshSearchIndex();
     }
 
-    public void changeTradePlace(String name, String dongName, Double latitude, Double longitude) {
-        this.tradePlaceName = name;
-        this.dongName = dongName;
-        this.tradeLatitude = latitude;
-        this.tradeLongitude = longitude;
+    /** 제목·상품명이 바뀌면 검색 색인도 다시 만든다 */
+    @PrePersist
+    @PreUpdate
+    void refreshSearchIndex() {
+        this.searchWords = PostSearchKeyword.wordIndex(title, productName);
+        this.titleChosung = PostSearchKeyword.chosung(title);
+    }
+
+    // ---------- 나눔 장소 ----------
+
+    public boolean hasDistributionPlace() {
+        return distributionPlaceName != null;
+    }
+
+    /**
+     * 나눔 장소 제안·변경 (호스트). 주문 전(모집중·모집완료)에만 할 수 있다.
+     * 장소가 바뀌면 참여자 동의는 서비스에서 모두 초기화한다.
+     */
+    public void proposeDistributionPlace(String name, Double latitude, Double longitude, LocalDateTime now) {
+        requireBeforeOrder();
+        this.distributionPlaceName = name;
+        this.distributionPlaceLatitude = latitude;
+        this.distributionPlaceLongitude = longitude;
+        this.distributionPlaceProposedAt = now;
+    }
+
+    /** 주문 전(모집중·모집완료)이 아니면 POST409 */
+    public void requireBeforeOrder() {
+        if (status != PostStatus.RECRUITING && status != PostStatus.RECRUITED) {
+            throw new GeneralException(ErrorStatus.INVALID_POST_STATUS);
+        }
     }
 
     /** 이미지 목록 전체를 바꾼다 */

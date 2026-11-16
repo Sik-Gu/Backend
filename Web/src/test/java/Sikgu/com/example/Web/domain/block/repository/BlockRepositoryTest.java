@@ -45,12 +45,12 @@ class BlockRepositoryTest {
 
         var page = blockRepository.findByBlockerIdOrderByCreatedAtDesc(me.getId(), PageRequest.of(0, 10));
 
-        assertThat(page.getContent()).extracting(block -> block.getBlocked().getLoginId())
-                .containsExactlyInAnyOrder("xxxx", "yyyy");
+        assertThat(page.getContent()).extracting(block -> block.getBlocked().getSchoolEmail())
+                .containsExactlyInAnyOrder("xxxx@korea.ac.kr", "yyyy@korea.ac.kr");
     }
 
-    private User save(String loginId) {
-        User user = Fixtures.newUser(loginId);
+    private User save(String name) {
+        User user = Fixtures.newUser(name);
         em.persist(user);
         return user;
     }
