@@ -58,7 +58,7 @@ public class PostService {
     @Transactional
     public PostCreateResponse create(Long hostId, PostCreateRequest request) {
         LocalDateTime now = LocalDateTime.now(clock);
-        validateCreate(request, now);
+        validateCreate(request);
         pointClient.validateNoUnpaidDebt(hostId); // D9: 미수금이 있으면 등록 불가
 
         User host = userRepository.findById(hostId)
@@ -69,7 +69,7 @@ public class PostService {
         }
         Post post = Post.create(host, request.title(), request.content(), request.productName(),
                 request.productLink(), request.category(), request.baseUnit(), request.totalUnits(),
-                request.totalPrice(), request.deadlineAt());
+                request.totalPrice(), now.plus(Post.RECRUIT_PERIOD));
         post.replaceImages(request.imageUrls());
         postRepository.save(post);
 
@@ -138,12 +138,9 @@ public class PostService {
         if (post.getStatus() != PostStatus.RECRUITING || post.getParticipantCount() > 1) {
             throw new GeneralException(ErrorStatus.POST_NOT_EDITABLE);
         }
-        if (request.deadlineAt() != null && !request.deadlineAt().isAfter(LocalDateTime.now(clock))) {
-            throw new GeneralException(ErrorStatus.DEADLINE_PASSED);
-        }
 
         post.update(request.title(), request.productName(), request.productLink(), request.category(),
-                request.content(), request.deadlineAt());
+                request.content());
         if (request.imageUrls() != null) {
             post.replaceImages(request.imageUrls());
         }
@@ -161,15 +158,42 @@ public class PostService {
         post.cancel(LocalDateTime.now(clock));
 
         List<Participation> participations = participationRepository.findActiveByPostId(postId);
+        long refundedPoint = refundAll(postId, participations);
+        chatClient.close(postId);
+
+        return new PostCancelResponse(postId, post.getStatus(), participations.size(), refundedPoint);
+    }
+
+    /**
+     * 모집 기간(등록 + 7일)이 지났는데 아직 모집중인 공구를 자동 취소한다 (D24).
+     * 게시글은 CANCELLED로 바뀌어 목록에서 사라지고, 호스트 포함 전원 환급, 채팅방 종료.
+     * 모집완료(RECRUITED) 이후는 건드리지 않는다. 스케줄러가 공구마다 별도 트랜잭션으로 부른다.
+     *
+     * @return 취소했으면 true (그 사이 모집완료·취소됐으면 false)
+     */
+    @Transactional
+    public boolean expire(Long postId) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        Post post = postRepository.findByIdForUpdate(postId).orElse(null);
+        if (post == null || post.getStatus() != PostStatus.RECRUITING || !post.isDeadlinePassed(now)) {
+            return false;
+        }
+        post.cancel(now);
+        refundAll(postId, participationRepository.findActiveByPostId(postId));
+        chatClient.sendSystemMessage(postId, "모집 기간(7일)이 지나 공구가 취소됐어요. 포인트는 모두 환급됐어요.");
+        chatClient.close(postId);
+        return true;
+    }
+
+    /** 참여 중인 사람 전원 환급 (락 순서: 게시글 → 지갑, D4). 환급한 포인트 합계를 돌려준다 */
+    private long refundAll(Long postId, List<Participation> participations) {
         long refundedPoint = 0;
         for (Participation participation : participations) {
             pointClient.refund(participation.getUser().getId(), postId, participation.getId());
             participation.markRefunded();
             refundedPoint += participation.paidPoint();
         }
-        chatClient.close(postId);
-
-        return new PostCancelResponse(postId, post.getStatus(), participations.size(), refundedPoint);
+        return refundedPoint;
     }
 
     private Post getPostForUpdate(Long postId) {
@@ -183,12 +207,9 @@ public class PostService {
         }
     }
 
-    private void validateCreate(PostCreateRequest request, LocalDateTime now) {
+    private void validateCreate(PostCreateRequest request) {
         if (request.hostUnits() >= request.totalUnits()) {
             throw new GeneralException(ErrorStatus.INVALID_HOST_UNITS);
-        }
-        if (!request.deadlineAt().isAfter(now)) {
-            throw new GeneralException(ErrorStatus.DEADLINE_PASSED);
         }
         if (request.totalPrice() % request.totalUnits() != 0) {
             // 나머지 처리 방식이 정해지지 않아서 일단 거부 (가정)

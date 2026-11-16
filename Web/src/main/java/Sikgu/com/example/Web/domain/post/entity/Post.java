@@ -22,6 +22,7 @@ import jakarta.persistence.OrderBy;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -155,6 +156,9 @@ public class Post {
     @OrderBy("sortOrder ASC")
     private List<PostImage> images = new ArrayList<>();
 
+    /** 모집 기간. 등록 시각 + 7일(7×24시간)이 마감. 그때까지 모집완료가 안 되면 자동 취소·전원 환급 (D24) */
+    public static final Duration RECRUIT_PERIOD = Duration.ofDays(7);
+
     public static Post create(User host, String title, String content, String productName, String productLink,
                               Category category, String baseUnit, int totalUnits, int totalPrice,
                               LocalDateTime deadlineAt) {
@@ -214,8 +218,7 @@ public class Post {
     // ---------- 수정 ----------
 
     /** 공구 수정. null인 값은 그대로 둔다. 검색 색인도 같이 갱신한다 */
-    public void update(String title, String productName, String productLink, Category category, String content,
-                       LocalDateTime deadlineAt) {
+    public void update(String title, String productName, String productLink, Category category, String content) {
         if (title != null) {
             this.title = title;
         }
@@ -230,9 +233,6 @@ public class Post {
         }
         if (content != null) {
             this.content = content;
-        }
-        if (deadlineAt != null) {
-            this.deadlineAt = deadlineAt;
         }
         refreshSearchIndex();
     }
