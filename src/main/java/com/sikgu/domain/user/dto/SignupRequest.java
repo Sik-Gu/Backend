@@ -3,7 +3,6 @@ package com.sikgu.domain.user.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 
 public record SignupRequest(
 
@@ -14,9 +13,5 @@ public record SignupRequest(
         @NotBlank(message = "비밀번호를 입력해주세요.")
         @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[!@#$%^&*]).{8,20}$",
                  message = "비밀번호는 영문, 숫자, 특수문자를 포함해 8~20자입니다.")
-        String password,
-
-        @NotBlank(message = "닉네임을 입력해주세요.")
-        @Size(min = 2, max = 12, message = "닉네임은 2~12자입니다.")
-        String nickname
+        String password
 ) {}

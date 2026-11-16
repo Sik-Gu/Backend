@@ -2,6 +2,7 @@ package com.sikgu.domain.user.service;
 
 import com.sikgu.domain.user.dto.*;
 import com.sikgu.domain.user.entity.User;
+import com.sikgu.domain.user.nickname.NicknameGenerator;
 import com.sikgu.domain.user.repository.UserRepository;
 import com.sikgu.global.apiPayload.ApiException;
 import com.sikgu.global.auth.JwtUtil;
@@ -18,20 +19,20 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final NicknameGenerator nicknameGenerator;
 
     @Transactional
     public SignupResponse signup(SignupRequest request) {
         if (userRepository.existsBySchoolEmail(request.schoolEmail())) {
             throw new ApiException(HttpStatus.CONFLICT, "USER409_3", "이미 가입된 이메일입니다.");
         }
-        if (userRepository.existsByNickname(request.nickname())) {
-            throw new ApiException(HttpStatus.CONFLICT, "USER409_2", "이미 사용 중인 닉네임입니다.");
-        }
+
+        String nickname = nicknameGenerator.generateUnique();
 
         User user = User.builder()
                 .schoolEmail(request.schoolEmail())
                 .password(passwordEncoder.encode(request.password()))
-                .nickname(request.nickname())
+                .nickname(nickname)
                 .build();
 
         User saved = userRepository.save(user);
