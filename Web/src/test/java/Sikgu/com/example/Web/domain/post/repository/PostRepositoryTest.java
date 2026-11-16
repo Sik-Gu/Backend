@@ -7,6 +7,7 @@ import Sikgu.com.example.Web.domain.participation.enums.ParticipationRole;
 import Sikgu.com.example.Web.domain.participation.repository.ParticipationRepository;
 import Sikgu.com.example.Web.domain.post.entity.Post;
 import Sikgu.com.example.Web.domain.post.enums.Category;
+import Sikgu.com.example.Web.domain.post.enums.PostStatus;
 import Sikgu.com.example.Web.domain.user.entity.User;
 import Sikgu.com.example.Web.support.Fixtures;
 import jakarta.persistence.EntityManager;
@@ -45,6 +46,22 @@ class PostRepositoryTest {
         assertThat(found.thumbnailUrl()).isEqualTo("/images/a.jpg");
         assertThat(found.getHost().getSchoolEmail()).isEqualTo("host@korea.ac.kr");
         assertThat(found.getUnitPrice()).isEqualTo(4840);
+    }
+
+    @Test
+    void 자동_취소_대상은_마감이_지난_모집중_공구만() {
+        User host = persist(Fixtures.newUser("host"));
+        Post expired = postRepository.save(Fixtures.post(host, NOW.minusMinutes(1)));
+        Post notYet = postRepository.save(Fixtures.post(host, NOW.plusDays(1)));
+        Post recruited = Fixtures.post(host, NOW.minusDays(1));
+        ReflectionTestUtils.setField(recruited, "status", PostStatus.RECRUITED);
+        postRepository.save(recruited);
+        em.flush();
+
+        List<Long> ids = postRepository.findIdsToExpire(PostStatus.RECRUITING, NOW);
+
+        assertThat(ids).containsExactly(expired.getId());
+        assertThat(ids).doesNotContain(notYet.getId(), recruited.getId());
     }
 
     @Test
