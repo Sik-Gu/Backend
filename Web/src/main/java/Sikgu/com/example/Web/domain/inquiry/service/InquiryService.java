@@ -34,8 +34,8 @@ public class InquiryService {
     private final ChatClient chatClient;
 
     /**
-     * 문의 등록. 내 수령 상태가 문의중이 되어 자동 수령·정산 대상에서 빠진다.
-     * 받았어요·자동 수령과 동시에 일어나지 않게 게시글 락을 잡는다.
+     * 문의 등록. 내 수령 상태가 문의중이 되어 정산 대상에서 빠진다.
+     * 받았어요와 동시에 일어나지 않게 게시글 락을 잡는다.
      */
     @Transactional
     public InquiryCreateResponse create(Long userId, Long postId, InquiryCreateRequest request) {

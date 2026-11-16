@@ -11,7 +11,6 @@ import Sikgu.com.example.Web.domain.order.entity.PostOrder;
 import Sikgu.com.example.Web.domain.order.repository.PostOrderRepository;
 import Sikgu.com.example.Web.domain.participation.entity.Participation;
 import Sikgu.com.example.Web.domain.participation.repository.ParticipationRepository;
-import Sikgu.com.example.Web.domain.participation.service.ReceiptPolicy;
 import Sikgu.com.example.Web.domain.post.entity.Post;
 import Sikgu.com.example.Web.domain.post.enums.PostStatus;
 import Sikgu.com.example.Web.domain.post.repository.PostRepository;
@@ -85,8 +84,7 @@ public class OrderService {
 
         return new OrderDetailResponse(order.getId(), order.getCourier(), order.getTrackingNumber(),
                 post.getTotalPrice(), order.receiptImageUrls(), order.getRegisteredAt(), order.getDistributeAt(),
-                order.getDistributePlace(), ReceiptPolicy.autoConfirmAt(order.getDistributeAt()),
-                heldPoint(post, participations));
+                order.getDistributePlace(), heldPoint(post, participations));
     }
 
     /** 배송 시작. 오프라인 구매면 택배사·송장 없이 */
@@ -119,12 +117,11 @@ public class OrderService {
 
         participationRepository.findActiveByPostId(postId).stream()
                 .filter(Participation::isHost)
-                .forEach(host -> host.confirmReceipt(now, false));
+                .forEach(host -> host.confirmReceipt(now));
         chatClient.sendSystemMessage(postId, "나눔 일정이 정해졌어요: " + order.getDistributePlace()
                 + ". 물건을 받으면 '받았어요'를 눌러 주세요.");
 
-        return new DistributionResponse(post.getStatus(), post.getDistributedAt(), order.getDistributePlace(),
-                ReceiptPolicy.autoConfirmAt(order.getDistributeAt()));
+        return new DistributionResponse(post.getStatus(), post.getDistributedAt(), order.getDistributePlace());
     }
 
     /** 아직 보류 중인 포인트 (정산·취소 후 0). 포인트 기능 연동 전까지 참여 정보로 계산한다 */
